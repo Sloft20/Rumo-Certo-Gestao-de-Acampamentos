@@ -1,0 +1,274 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Se depois quiser puxar mais para o Verde-Água, basta mudar o --primary para #0d9488 */
+  --primary: #2563eb; 
+  --primary-light: #eff6ff;
+  --success: #10b981;
+  --success-light: #d1fae5;
+  --danger: #ef4444;
+  --danger-light: #fee2e2;
+  --warning: #f59e0b;
+  --warning-light: #fef3c7;
+  --bg-color: #f8fafc;
+  --surface: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --radius: 16px;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-color);
+  font-family: 'Inter', sans-serif;
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================
+   LAYOUT E CONTAINERS (Trazidos do App.jsx)
+   ========================================== */
+.container-principal { 
+  max-width: 1000px; 
+  margin: 0 auto; 
+  padding: 20px; 
+  min-height: 100vh; 
+}
+
+.grid-dashboard { 
+  display: grid; 
+  grid-template-columns: 1fr; 
+  gap: 16px; 
+  margin-bottom: 32px; 
+}
+
+@media (min-width: 768px) { 
+  .grid-dashboard { 
+    grid-template-columns: 1.5fr 1fr 1fr; 
+  } 
+}
+
+/* ==========================================
+   COMPONENTES UI (Cards, Inputs, Botões)
+   ========================================== */
+.cartao { 
+  background: var(--surface); 
+  border-radius: 20px; 
+  padding: 24px; 
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05); 
+  border: 1px solid var(--border); 
+}
+
+.input-moderno { 
+  width: 100%; 
+  padding: 16px; 
+  border-radius: 12px; 
+  border: 1.5px solid var(--border); 
+  font-size: 16px; 
+  font-family: 'Inter', sans-serif;
+  box-sizing: border-box; 
+  transition: 0.2s; 
+  background: var(--bg-color); 
+  outline: none; 
+  color: #334155; 
+}
+
+.input-moderno:focus { 
+  border-color: var(--primary); 
+  background: var(--surface); 
+  box-shadow: 0 0 0 4px var(--primary-light); 
+}
+
+.label-moderna { 
+  display: block; 
+  font-size: 13px; 
+  font-weight: 700; 
+  color: var(--text-muted); 
+  margin-bottom: 8px; 
+  text-transform: uppercase; 
+  letter-spacing: 0.5px; 
+}
+
+/* Abas Superiores */
+.btn-aba { 
+  flex: 1; 
+  padding: 14px; 
+  border-radius: 14px; 
+  border: none; 
+  font-weight: 700; 
+  font-size: 15px; 
+  cursor: pointer; 
+  transition: 0.2s; 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  gap: 8px; 
+  font-family: 'Inter', sans-serif;
+}
+
+.btn-aba-ativa { 
+  background: var(--primary); 
+  color: white; 
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.3); 
+}
+
+.btn-aba-inativa { 
+  background: #f1f5f9; 
+  color: var(--text-muted); 
+}
+
+/* ==========================================
+   NAVEGAÇÃO INFERIOR (MANTIDA PARA COMPATIBILIDADE)
+   ========================================== */
+.nav-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: var(--surface);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-around;
+  padding: 12px 0;
+  z-index: 900;
+  border-top: 1px solid var(--border);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 24px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.nav-item.active {
+  color: var(--primary);
+  background-color: var(--primary-light);
+}
+/* ==========================================
+   NOVA NAVEGAÇÃO INFERIOR (DARK NAVY & TEAL)
+   ========================================== */
+.menu-navegacao {
+  display: flex;
+  background-color: #ffffff;
+  z-index: 1000;
+  position: fixed;
+  transition: all 0.3s ease;
+}
+
+.btn-nav {
+  background-color: transparent;
+  border: none;
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* O fundo do ícone (inativo e hover) */
+.btn-nav .icone-container {
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Cor do Ícone Inativo (Celular) */
+.btn-nav .icone-svg {
+  color: #0f172a; 
+  transition: all 0.3s ease;
+}
+
+/* Hover no Celular */
+.btn-nav:hover .icone-container {
+  background-color: #f1f5f9;
+}
+
+/* ESTADO ATIVO (Verde-Água / Teal) */
+.btn-nav.ativo .icone-container {
+  background-color: #14b8a6; /* Verde-Água (Teal 500) */
+  box-shadow: 0 4px 10px rgba(20, 184, 166, 0.3);
+}
+
+.btn-nav.ativo .icone-svg {
+  color: #ffffff !important; /* Ícone Branco */
+}
+
+/* Estilo do Texto */
+.btn-nav span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.3s ease;
+}
+
+.btn-nav.ativo span {
+  color: #0d9488; /* Verde-Água escuro para o texto */
+  font-weight: 800;
+}
+
+/* CELULAR (Embaixo, Fundo Branco) */
+@media (max-width: 767px) {
+  .menu-navegacao {
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.03);
+    gap: 8px;
+  }
+  .btn-nav {
+    flex: 1;
+    max-width: 80px;
+    padding: 8px 0;
+    border-radius: 12px;
+  }
+}
+
+/* PC (Lateral Esquerda, Fundo Dark Navy) */
+@media (min-width: 768px) {
+  .menu-navegacao {
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 100px;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-top: 32px;
+    background-color: #0f172a; /* Azul Escuro / Navy */
+    box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+  }
+  .btn-nav {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 16px auto;
+    border-radius: 16px;
+  }
+  .btn-nav .icone-svg {
+    color: #94a3b8; /* Ícone inativo mais claro para o fundo escuro */
+  }
+  .btn-nav:hover .icone-container {
+    background-color: #1e293b; /* Fundo levemente mais claro no hover */
+  }
+  /* O ativo já herda o fundo Verde-Água da regra principal */
+}
