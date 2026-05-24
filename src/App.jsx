@@ -272,19 +272,38 @@ export default function App() {
   };
 
   const prepararEdicao = (item) => {
-    setIdEmEdicao(obterColuna(item, 'ID')); setDataEmEdicao(obterColuna(item, 'Data')); 
-    setTipo(obterColuna(item, 'Tipo')); setDescricao(obterColuna(item, 'Descrição'));
-    setCategoriaSelecionada(obterColuna(item, 'Categoria')); setFormaPagamento(obterColuna(item, 'Forma de Pagamento') || 'PIX');
+    // 1. Pega a data crua da planilha
+    let dataCorrigida = obterColuna(item, 'Data');
+    
+    // 2. Se a data vier com o 'T' (ex: 2026-05-20T03:00...), nós a formatamos para DD/MM/YYYY
+    if (dataCorrigida && String(dataCorrigida).includes('T')) {
+      const [ano, mes, dia] = String(dataCorrigida).split('T')[0].split('-');
+      dataCorrigida = `${dia}/${mes}/${ano}`;
+    }
+
+    // 3. Alimenta o estado com a data limpinha
+    setIdEmEdicao(obterColuna(item, 'ID')); 
+    setDataEmEdicao(dataCorrigida); 
+    
+    setTipo(obterColuna(item, 'Tipo')); 
+    setDescricao(obterColuna(item, 'Descrição'));
+    setCategoriaSelecionada(obterColuna(item, 'Categoria')); 
+    setFormaPagamento(obterColuna(item, 'Forma de Pagamento') || 'PIX');
     setObservacao(obterColuna(item, 'Observação') || '');
     
     const isEntrada = obterColuna(item, 'Tipo') === 'ENTRADA';
     const cat = obterColuna(item, 'Categoria');
-    if(isEntrada && (cat === 'Inscrição' || cat === 'Diária')) setValorTotal(obterColuna(item, 'Valor Total') || '');
-    else setValorTotal('');
+    
+    if(isEntrada && (cat === 'Inscrição' || cat === 'Diária')) {
+      setValorTotal(obterColuna(item, 'Valor Total') || '');
+    } else {
+      setValorTotal('');
+    }
+    
     setValorPago(obterColuna(item, 'Valor Pago') || '');
     setTelaAtual('NOVO');
   };
-
+  
   const excluirRegistro = async (id) => {
     if(!id) { toast.error("Este registro antigo não possui ID."); return; }
     if(!window.confirm("Tem certeza que deseja excluir este lançamento?")) return;
