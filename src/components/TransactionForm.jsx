@@ -1,6 +1,6 @@
 // src/components/TransactionForm.jsx
 import React from 'react';
-import { ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertCircle, Paperclip, X } from 'lucide-react';
 import CustomSelect from './CustomSelect'; // IMPORTAÇÃO DO NOVO DROPDOWN
 
 export default function TransactionForm({
@@ -9,7 +9,7 @@ export default function TransactionForm({
   novaCategoria, setNovaCategoria, descricao, setDescricao,
   isInscricao, valorTotal, setValorTotal, valorPago, setValorPago,
   saldoDevedor, formaPagamento, setFormaPagamento, carregando,
-  observacao, setObservacao
+  observacao, setObservacao, arquivoAnexo, setArquivoAnexo
 }) {
 
   // Prepara as opções de categoria no formato correto
@@ -89,6 +89,45 @@ export default function TransactionForm({
             placeholder="Algum detalhe importante? Ex: Faltou entregar a autorização."
             style={{ resize: 'vertical', minHeight: '80px', fontFamily: 'inherit' }}
           />
+        </div>
+        {/* CAMPO DE ANEXO (FOTO / PDF) */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px', color: document.body.classList.contains('dark') ? '#cbd5e1' : '#334155' }}>
+            Comprovante / Recibo (Opcional)
+          </label>
+
+          {!arquivoAnexo ? (
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', border: `2px dashed ${document.body.classList.contains('dark') ? '#475569' : '#cbd5e1'}`, borderRadius: '14px', cursor: 'pointer', backgroundColor: document.body.classList.contains('dark') ? '#1e293b' : '#f8fafc', color: document.body.classList.contains('dark') ? '#94a3b8' : '#64748b', transition: '0.2s' }}>
+              <Paperclip size={18} />
+              <span style={{ fontSize: '14px', fontWeight: '600' }}>Anexar comprovante (Foto ou PDF)</span>
+              <input 
+                type="file" 
+                accept="image/*,application/pdf"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setArquivoAnexo(e.target.files[0]);
+                  }
+                }}
+              />
+            </label>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '14px', backgroundColor: document.body.classList.contains('dark') ? '#064e3b' : '#ecfdf5', border: `1px solid ${document.body.classList.contains('dark') ? '#047857' : '#10b981'}`, color: document.body.classList.contains('dark') ? '#a7f3d0' : '#065f46' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                <Paperclip size={18} />
+                <span style={{ fontSize: '14px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '210px' }}>
+                  {arquivoAnexo.name}
+                </span>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setArquivoAnexo(null)}
+                style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
         </div>
         
         <button disabled={carregando} type="submit" style={{ width: '100%', padding: '18px', fontSize: '16px', fontWeight: '800', backgroundColor: tipo === 'ENTRADA' ? '#10b981' : '#ef4444', color: 'white', border: 'none', borderRadius: '14px', marginTop: '16px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>

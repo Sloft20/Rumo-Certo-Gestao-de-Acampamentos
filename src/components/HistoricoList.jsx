@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, TrendingUp, TrendingDown, History, FileText, Edit2, Trash2, Clock, User, Calendar, MessageSquare, X } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, History, FileText, Edit2, Trash2, Clock, User, Calendar, MessageSquare, X, Paperclip } from 'lucide-react';
 import { obterColuna, formatarMoeda, formatarData } from '../utils/formatters';
 import { gerarRecibo } from '../utils/pdfGenerator';
 import toast from 'react-hot-toast';
@@ -16,6 +16,7 @@ export default function HistoricoList({
 
   // NOVO: Estado que controla qual transação está aberta no Modal
   const [transacaoSelecionada, setTransacaoSelecionada] = useState(null);
+  const [anexoParaVisualizar, setAnexoParaVisualizar] = useState(null);
 
   const exibirHora = (horaRaw) => {
     if (!horaRaw) return null;
@@ -117,8 +118,13 @@ export default function HistoricoList({
               <h4 className="text-slate-900" style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {obterColuna(item, 'Descrição')}
               </h4>
-              <small className="text-slate-500" style={{ fontSize: '13px', fontWeight: '500' }}>
+              <small className="text-slate-500" style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {formatarData(obterColuna(item, 'Data'))} • {obterColuna(item, 'Categoria')}
+                {item.foi_editado && (
+                  <span style={{ backgroundColor: '#fef3c7', color: '#d97706', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', letterSpacing: '0.5px' }}>
+                    EDITADO
+                  </span>
+                )}
               </small>
             </div>
             
@@ -137,6 +143,7 @@ export default function HistoricoList({
         const isEntradaModal = obterColuna(ts, 'Tipo') === 'ENTRADA';
         const temIdModal = obterColuna(ts, 'ID');
         const observacaoModal = obterColuna(ts, 'Observação');
+        const urlAnexoModal = ts['anexo_url'];
 
         return (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', backdropFilter: 'blur(4px)' }}>
@@ -204,6 +211,33 @@ export default function HistoricoList({
                   </span>
                 </div>
               )}
+              {/* BOTÃO DE ANEXO (AGORA ABRE NA MESMA TELA) */}
+              {urlAnexoModal && (
+                <button 
+                  type="button"
+                  onClick={() => setAnexoParaVisualizar(urlAnexoModal)} 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '8px', 
+                    width: '100%', 
+                    padding: '12px', 
+                    marginBottom: '16px', 
+                    borderRadius: '14px', 
+                    backgroundColor: document.body.classList.contains('dark') ? '#1e293b' : '#f1f5f9', 
+                    color: document.body.classList.contains('dark') ? '#38bdf8' : '#0284c7', 
+                    fontWeight: '700', 
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    border: `1px solid ${document.body.classList.contains('dark') ? '#0369a1' : '#bae6fd'}`,
+                    transition: '0.2s'
+                  }}
+                >
+                  <Paperclip size={18} />
+                  <span>Ver Comprovante Anexado</span>
+                </button>
+              )}
 
               {/* Botões de Ação */}
               <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
@@ -240,6 +274,37 @@ export default function HistoricoList({
           </div>
         );
       })()}
+      {/* MODAL SUPREMO DE VISUALIZAÇÃO DE ANEXO (Z-INDEX 10000) */}
+      {anexoParaVisualizar && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(6px)' }}>
+          
+          {/* Barra superior com botão de fechar */}
+          <div style={{ width: '100%', maxWidth: '750px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <span style={{ color: '#f8fafc', fontWeight: '700', fontSize: '14px' }}>Visualizador de Documento</span>
+            <button 
+              onClick={() => setAnexoParaVisualizar(null)}
+              style={{ background: '#334155', color: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Janela Inteligente (Detecta se é PDF ou Foto) */}
+          <div style={{ width: '100%', maxWidth: '750px', height: '75vh', backgroundColor: '#0f172a', borderRadius: '16px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #334155' }}>
+            {anexoParaVisualizar.toLowerCase().includes('.pdf') ? (
+              <iframe src={anexoParaVisualizar} style={{ width: '100%', height: '100%', border: 'none' }} title="Comprovante PDF" />
+            ) : (
+              <img src={anexoParaVisualizar} alt="Comprovante" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            )}
+          </div>
+
+          {/* Plano B de segurança para navegadores mobile chatos */}
+          <a href={anexoParaVisualizar} target="_blank" rel="noopener noreferrer" style={{ marginTop: '14px', color: '#38bdf8', fontSize: '12px', fontWeight: '600', textDecoration: 'underline' }}>
+            O arquivo não abriu aqui dentro? Clique para abrir em nova aba ↗
+          </a>
+
+        </div>
+      )}
 
     </div>
   );

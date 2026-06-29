@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Wallet, RefreshCw, User, Users, Download, Eye, EyeOff, ShieldAlert, Settings, Plus, Trash2, X, ChevronDown, AlertCircle, Moon, Sun } from 'lucide-react';
+import { Wallet, RefreshCw, User, Users, Download, Eye, EyeOff, ShieldAlert, Settings, Plus, Trash2, X, ChevronDown, AlertCircle, Moon, Sun, Paperclip } from 'lucide-react';
 import './App.css';
+import { supabase } from './supabaseClient';
 import { obterColuna, extrairNumero, formatarMoeda, formatarData } from './utils/formatters';
 import DashboardOverview from './components/DashboardOverview';
 import AcampanteList from './components/AcampanteList';
@@ -26,6 +27,8 @@ export default function App() {
   const [dropdownOperadorAberto, setDropdownOperadorAberto] = useState(false);
   const [filtroCategoria, setFiltroCategoria] = useState('TODOS');
   const [observacao, setObservacao] = useState('');
+  const [arquivoAnexo, setArquivoAnexo] = useState(null);
+  const [idParaExcluir, setIdParaExcluir] = useState(null);
 
   const [listaEdicoes, setListaEdicoes] = useState(['2027']);
 
@@ -53,6 +56,7 @@ export default function App() {
   const [acampanteSelecionado, setAcampanteSelecionado] = useState(null);
   
   const [novoPagamento, setNovoPagamento] = useState('');
+  const [arquivoAnexoPagamento, setArquivoAnexoPagamento] = useState(null);
   const [idEmEdicao, setIdEmEdicao] = useState(null);
   const [dataEmEdicao, setDataEmEdicao] = useState(null);
   const [formaPagamentoAdicional, setFormaPagamentoAdicional] = useState('PIX');
@@ -103,7 +107,7 @@ export default function App() {
     const handleOffline = () => setIsOffline(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+  
     const carregarDadosLocais = async () => {
       try {
         const salvas = await localforage.getItem('categorias_personalizadas');
@@ -150,20 +154,48 @@ export default function App() {
   };
 
   const carregarDados = async () => {
-    if (navigator.onLine) {
-      setMensagemCarregando('Atualizando dados...'); setCarregando(true);
-      try {
-        const res = await fetch(API_URL);
-        const data = await res.json();
-        setDadosPlanilha(data); 
-        const todasAsEdicoes = data.map(item => item['Edição'] || item['Edicao']);
-        const edicoesUnicas = [...new Set(todasAsEdicoes)].filter(Boolean).sort();
-        if (edicoesUnicas.length > 0) {
-          setListaEdicoes(edicoesUnicas);
-          if (!edicoesUnicas.includes(edicaoAtiva)) setEdicaoAtiva(edicoesUnicas[edicoesUnicas.length - 1]);
-        }
-      } catch (e) { console.log("Erro de rede.", e); }
+    console.log("🔎 1. Iniciando busca no Supabase...");
+    setMensagemCarregando('Atualizando dados...'); // <-- Define o texto correto da ação!
+    setCarregando(true);
+    try {
+      const { data, error } = await supabase
+        .from('transacoes')
+        .select('*')
+        .order('data_transacao', { ascending: false })
+        .order('hora_transacao', { ascending: false });
+
+      console.log("🔎 2. Resposta do Supabase:", { data, error });
+
+      if (error) throw error;
+
+      const dadosFormatados = data.map(item => ({
+        'ID': item.id,
+        'Edição': item.edicao || '2027',
+        'Tipo': item.tipo,
+        'Descrição': item.descricao,
+        'Categoria': item.categoria,
+        'Valor Total': item.valor_total,
+        'Valor Pago': item.valor_pago,
+        'Forma de Pagamento': item.forma_pagamento,
+        'Operador': item.operador,
+        'Observação': item.observacao,
+        'Data': item.data_transacao,
+        'Hora': item.hora_transacao,
+        'foi_editado': item.foi_editado,
+        'anexo_url': item.anexo_url
+      }));
+
+      console.log("🔎 3. Dados formatados prontos para a tela:", dadosFormatados);
+      
+      setDadosPlanilha(dadosFormatados); 
+      
+      console.log("🔎 4. Tela atualizada com sucesso!");
+    } catch (error) {
+      console.error("🚨 ERRO GRAVE ao buscar dados:", error);
+      toast.error("Erro ao conectar com o banco de dados.");
+    } finally {
       setCarregando(false);
+      setMensagemCarregando(''); // <-- Faxina: zera a memória ao terminar!
     }
   };
 
@@ -228,7 +260,7 @@ export default function App() {
   });
   
   const historicoFiltrado = useMemo(() => {
-    return dadosDaEdicao.slice().reverse().filter(item => {
+    return dadosDaEdicao.filter(item => {
       const desc = (obterColuna(item, 'Descrição') || '').toLowerCase();
       const cat = (obterColuna(item, 'Categoria') || '').toLowerCase();
       const busca = termoBuscaHistorico.toLowerCase();
@@ -263,6 +295,23 @@ export default function App() {
         }
       }
       return matchTexto && matchTipo && matchData;
+    }).sort((a, b) => {
+      // A MARRETA DA ORDENAÇÃO: Garante os mais novos sempre no topo
+      // Limpamos qualquer 'T' para garantir a junção perfeita de Data + Hora
+      const dataA = String(obterColuna(a, 'Data') || '').split('T')[0];
+      const horaA = obterColuna(a, 'Hora') || '00:00:00';
+      
+      const dataB = String(obterColuna(b, 'Data') || '').split('T')[0];
+      const horaB = obterColuna(b, 'Hora') || '00:00:00';
+
+      const carimboA = new Date(`${dataA}T${horaA}`).getTime();
+      const carimboB = new Date(`${dataB}T${horaB}`).getTime();
+
+      // Se der NaN (dado inválido), empurra para o final. Senão, ordena do maior pro menor.
+      if (isNaN(carimboA)) return 1;
+      if (isNaN(carimboB)) return -1;
+      
+      return carimboB - carimboA;
     });
   }, [dadosDaEdicao, termoBuscaHistorico, filtroTipoHistorico, filtroDataInicio, filtroDataFim]);
 
@@ -304,16 +353,36 @@ export default function App() {
     setTelaAtual('NOVO');
   };
   
-  const excluirRegistro = async (id) => {
+  const excluirRegistro = (id) => {
     if(!id) { toast.error("Este registro antigo não possui ID."); return; }
-    if(!window.confirm("Tem certeza que deseja excluir este lançamento?")) return;
     if (!navigator.onLine) { toast.error("Você precisa estar online para excluir."); return; }
+    setIdParaExcluir(id); // Abre o nosso modal moderno
+  };
+
+  const confirmarExclusao = async () => {
+    if (!idParaExcluir) return;
+    setMensagemCarregando('Excluindo registro...'); 
+    setCarregando(true);
+    const idAlvo = idParaExcluir;
+    setIdParaExcluir(null); 
     
-    setMensagemCarregando('Excluindo registro...'); setCarregando(true);
     try {
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ acao: 'delete', id: id }) });
-      carregarDados(); toast.success("Registro excluído com sucesso!");
-    } catch (e) { toast.error("Erro ao excluir."); setCarregando(false); }
+      // Deleta direto pelo ID único do Supabase
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('id', idAlvo);
+        
+      if (error) throw error;
+      
+      toast.success("Registro excluído com sucesso!");
+      carregarDados(); 
+    } catch (e) { 
+      console.error(e);
+      toast.error("Erro ao excluir."); 
+    } finally {
+      setCarregando(false); 
+    }
   };
 
   const sincronizarFila = async () => {
@@ -360,58 +429,166 @@ export default function App() {
     carregarDados(); setModalLoteAberto(false); setModoLote(false); setSelecionadosLote([]); setValorLote('');
     toast.success('Pagamento em Lote processado!');
   };
+  const fazerUploadAnexo = async (arquivo) => {
+    if (!arquivo) return null;
+    
+    // Pega a extensão (ex: .jpg, .png, .pdf)
+    const extensao = arquivo.name.split('.').pop();
+    const nomeUnico = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${extensao}`;
+    
+    const { error } = await supabase.storage
+      .from('comprovantes')
+      .upload(nomeUnico, arquivo);
+
+    if (error) {
+      console.error("Erro no Storage:", error);
+      throw new Error("Falha ao enviar arquivo pro bucket.");
+    }
+
+    // Pega a URL pública gerada
+    const { data } = supabase.storage
+      .from('comprovantes')
+      .getPublicUrl(nomeUnico);
+
+    return data.publicUrl;
+  };
 
   const guardarRegistro = async (e) => {
     e.preventDefault();
-    let catFinal = categoriaSelecionada === 'OUTRA' ? novaCategoria : categoriaSelecionada;
-    if (categoriaSelecionada === 'OUTRA' && novaCategoria.trim() !== '') {
-      const novasExtras = { ...categoriasExtras, [tipo]: [...categoriasExtras[tipo], novaCategoria] };
-      setCategoriasExtras(novasExtras); localforage.setItem('categorias_personalizadas', novasExtras);
-    }
+    setMensagemCarregando(idEmEdicao ? 'Atualizando registro...' : 'Salvando lançamento...');
+    setCarregando(true);
 
-    const valorFinalPago = isInscricao ? valorPago : (valorPago || valorTotal);
-    const valorFinalTotal = (tipo === 'ENTRADA' && catFinal === 'Pagamento Adicional') ? 0 : (isInscricao ? valorTotal : valorFinalPago);
-    const saldoDev = valorFinalTotal - valorFinalPago;
+    const categoriaFinal = categoriaSelecionada === 'OUTRA' ? novaCategoria : categoriaSelecionada;
+    const valorPagoNum = parseFloat(String(valorPago).replace(',', '.'));
+    const valorTotalNum = valorTotal ? parseFloat(String(valorTotal).replace(',', '.')) : null;
 
-    const registro = {
-      id: idEmEdicao ? idEmEdicao : Date.now().toString(),
-      acao: idEmEdicao ? "update" : "novo",
-      edicao: edicaoAtiva, data: idEmEdicao ? dataEmEdicao : undefined, 
-      operador: operadorCaixa || 'Não identificado', 
-      hora: "'" + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), 
-      tipoTransacao: tipo, descricao: descricao, valorTotal: valorFinalTotal, valorPago: valorFinalPago,   
-      status: (isInscricao && saldoDev > 0) ? 'Pendente' : 'Concluído', formaPagamento: formaPagamento, categoria: catFinal,
-      observacao: observacao
-    };
-
-    if (navigator.onLine) {
-      setMensagemCarregando(idEmEdicao ? 'Salvando alterações...' : 'Lançando registro...'); setCarregando(true);
-      try {
-        await fetch(API_URL, { method: 'POST', body: JSON.stringify(registro) });
-        carregarDados(); setTelaAtual('LISTA'); toast.success(idEmEdicao ? 'Atualizado com sucesso!' : 'Salvo com sucesso!');
-      } catch (error) { 
-        const novaFila = [...filaOffline, registro]; setFilaOffline(novaFila); localforage.setItem('fila_acampamento', novaFila); setTelaAtual('LISTA'); setCarregando(false);
+    try {
+      // --- 1. FAZ O UPLOAD DA FOTO PRIMEIRO (SE HOUVER) ---
+      let urlAnexoGerada = null;
+      if (arquivoAnexo) {
+        setMensagemCarregando('Anexando comprovante...');
+        urlAnexoGerada = await fazerUploadAnexo(arquivoAnexo);
       }
-    } else {
-      const novaFila = [...filaOffline, registro]; setFilaOffline(novaFila); localforage.setItem('fila_acampamento', novaFila); setTelaAtual('LISTA');
+
+      if (idEmEdicao) {
+        const payloadEdicao = {
+          tipo: tipo,
+          descricao: descricao,
+          categoria: categoriaFinal,
+          valor_total: valorTotalNum,
+          valor_pago: valorPagoNum,
+          forma_pagamento: formaPagamento,
+          observacao: observacao,
+          foi_editado: true,
+          updated_at: new Date().toISOString()
+        };
+
+        // Se a pessoa subiu uma foto nova durante a edição, trocamos a URL
+        if (urlAnexoGerada) payloadEdicao.anexo_url = urlAnexoGerada;
+
+        const { error } = await supabase
+          .from('transacoes')
+          .update(payloadEdicao)
+          .eq('id', idEmEdicao);
+
+        if (error) throw error;
+        toast.success("Registro atualizado com sucesso!");
+        
+      } else {
+        const agora = new Date();
+        const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+        const horaLocal = agora.toTimeString().split(' ')[0];
+
+        const { error } = await supabase
+          .from('transacoes')
+          .insert([{
+            tipo: tipo,
+            descricao: descricao,
+            categoria: categoriaFinal,
+            valor_total: valorTotalNum,
+            valor_pago: valorPagoNum,
+            forma_pagamento: formaPagamento,
+            operador: operadorCaixa, 
+            observacao: observacao,
+            data_transacao: dataLocal,
+            hora_transacao: horaLocal,
+            anexo_url: urlAnexoGerada // <-- LINK SALVO AQUI!
+          }]);
+
+        if (error) throw error;
+        toast.success("Lançamento salvo com sucesso!");
+      }
+
+      // Limpa os dados da memória
+      setDescricao('');
+      setValorTotal('');
+      setValorPago('');
+      setObservacao('');
+      setNovaCategoria('');
+      setArquivoAnexo(null); // <-- Zera o arquivo anexado
+      setIdEmEdicao(null);
+      setTelaAtual('LISTA');
+      carregarDados();
+
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      toast.error("Erro ao salvar lançamento.");
+    } finally {
+      setCarregando(false);
     }
-    setIdEmEdicao(null); setDataEmEdicao(null); setDescricao(''); setValorTotal(''); setValorPago(''); setObservacao('');
   };
 
   const enviarNovoPagamento = async (e) => {
     e.preventDefault();
-    const dadosAtualizacao = { 
-        id: Date.now().toString(), acao: "atualizar_pagamento", edicao: edicaoAtiva, operador: operadorCaixa || 'Não identificado', 
-        hora: "'" + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), 
-        nome: acampanteSelecionado.Descrição, valorNovo: novoPagamento, formaPagamento: formaPagamentoAdicional 
-    };
-        
-    if (navigator.onLine) {
-      setMensagemCarregando('Registrando pagamento...'); setCarregando(true);
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify(dadosAtualizacao) });
-      setAcampanteSelecionado(null); setNovoPagamento(''); carregarDados(); toast.success('Pagamento recebido!');
-    } else {
-      const novaFila = [...filaOffline, dadosAtualizacao]; setFilaOffline(novaFila); localforage.setItem('fila_acampamento', novaFila); setAcampanteSelecionado(null); setNovoPagamento('');
+    if (!acampanteSelecionado || !novoPagamento) return;
+
+    setMensagemCarregando('Registrando pagamento...'); 
+    setCarregando(true);
+
+    const valorNum = parseFloat(String(novoPagamento).replace(',', '.'));
+    
+    // --- 1. FAZ O UPLOAD DO COMPROVANTE (SE HOUVER) ---
+    let urlAnexoGerada = null;
+    if (arquivoAnexoPagamento) {
+      setMensagemCarregando('Anexando comprovante...');
+      urlAnexoGerada = await fazerUploadAnexo(arquivoAnexoPagamento);
+    }
+
+    const agora = new Date();
+    const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+    const horaLocal = agora.toTimeString().split(' ')[0];
+
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .insert([{
+          tipo: 'ENTRADA',
+          descricao: acampanteSelecionado.Descrição,
+          categoria: 'Pagamento Adicional',
+          valor_total: null,
+          valor_pago: valorNum,
+          forma_pagamento: formaPagamentoAdicional,
+          operador: operadorCaixa || 'Não identificado',
+          observacao: 'Quitação parcial/total de inscrição.',
+          data_transacao: dataLocal,
+          hora_transacao: horaLocal,
+          edicao: edicaoAtiva,
+          anexo_url: urlAnexoGerada // <-- LINK DA FOTO SALVO AQUI!
+        }]);
+
+      if (error) throw error;
+
+      setAcampanteSelecionado(null); 
+      setNovoPagamento(''); 
+      setArquivoAnexoPagamento(null); // <-- Zera o arquivo da memória
+      carregarDados(); 
+      toast.success('Pagamento recebido!');
+
+    } catch (error) {
+      console.error("Erro ao registrar pagamento:", error);
+      toast.error('Erro ao salvar no Supabase.');
+    } finally {
+      setCarregando(false);
     }
   };
 
@@ -490,85 +667,69 @@ export default function App() {
       <div className="container-aplicacao" style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
         <Toaster position="top-center" reverseOrder={false} />
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px', gap: '20px' }}>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ backgroundColor: darkMode ? '#1e293b' : '#ffffff', padding: '8px', borderRadius: '16px', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}` }}>
-              <img src="/logo.png" alt="Logo Rumo Certo" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '26px', fontWeight: '800', lineHeight: '1.2', color: darkMode ? '#f8fafc' : '#0f172a' }}>Rumo Certo</h2>
-              
-              <div style={{ display: 'flex', alignItems: 'center', marginTop: '4px' }}>
-                <select value={edicaoAtiva} onChange={(e) => setEdicaoAtiva(e.target.value)} style={{ border: 'none', background: 'transparent', color: darkMode ? '#cbd5e1' : '#64748b', fontWeight: '700', fontSize: '13px', padding: 0, outline: 'none', cursor: 'pointer' }}>
-                  {listaEdicoes.map(edicao => <option key={edicao} value={edicao}>Edição {edicao}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px' }}>
+        
+         
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', width: '100%' }}>
             
-            <div style={{ position: 'relative' }}>
-              <div onClick={() => setDropdownOperadorAberto(!dropdownOperadorAberto)} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: darkMode ? '#1e293b' : '#ffffff', padding: '10px 16px', borderRadius: '20px', cursor: 'pointer', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+            {/* 1. CAIXA DO OPERADOR */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div onClick={() => setDropdownOperadorAberto(!dropdownOperadorAberto)} style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: darkMode ? '#1e293b' : '#ffffff', padding: '10px 12px', borderRadius: '14px', cursor: 'pointer', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
                 <User size={16} color={operadorCaixa ? '#0d9488' : '#ef4444'} />
-                <span style={{ color: operadorCaixa ? (darkMode ? '#f8fafc' : '#0f172a') : '#ef4444', fontWeight: '700', fontSize: '13px' }}>
-                  {operadorCaixa ? `Operador: ${operadorCaixa}` : 'Caixa Indefinido'}
+                <span style={{ color: operadorCaixa ? (darkMode ? '#f8fafc' : '#0f172a') : '#ef4444', fontWeight: '700', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                  {operadorCaixa ? operadorCaixa : 'Caixa Indefinido'}
                 </span>
-                <ChevronDown size={14} color="#94a3b8" style={{ marginLeft: '4px', transform: dropdownOperadorAberto ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.3s' }} />
+                <ChevronDown size={14} color="#94a3b8" style={{ transform: dropdownOperadorAberto ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.3s' }} />
               </div>
 
+              {/* Dropdown do Operador */}
               {dropdownOperadorAberto && (
                 <>
                   <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 40 }} onClick={() => setDropdownOperadorAberto(false)} />
-                  <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: '220px', backgroundColor: darkMode ? '#1e293b' : '#ffffff', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2)', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, zIndex: 50, padding: '8px', display: 'flex', flexDirection: 'column', gap: '4px', animation: 'slideUp 0.15s ease-out' }}>
-                    
+                  <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: '220px', backgroundColor: darkMode ? '#1e293b' : '#ffffff', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2)', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, zIndex: 50, padding: '8px', display: 'flex', flexDirection: 'column', gap: '4px', animation: 'slideUp 0.15s ease-out' }}>
                     <div onClick={() => { setOperadorCaixa(''); localStorage.removeItem('operador_caixa'); setDropdownOperadorAberto(false); }} style={{ padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: !operadorCaixa ? (darkMode ? '#450a0a' : '#fee2e2') : 'transparent' }}>
                       <AlertCircle size={16} /> Ficar Indefinido
                     </div>
-
                     <div style={{ height: '1px', background: darkMode ? '#334155' : '#f1f5f9', margin: '4px 0' }}></div>
-
                     {listaOperadores.map(op => (
                       <div key={op} onClick={() => { setOperadorCaixa(op); localStorage.setItem('operador_caixa', op); setDropdownOperadorAberto(false); }} style={{ padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: darkMode ? '#e2e8f0' : '#334155', display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: operadorCaixa === op ? (darkMode ? '#0f172a' : '#f0fdfa') : 'transparent', transition: '0.2s' }}>
                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: operadorCaixa === op ? '#0d9488' : '#cbd5e1' }}></div>
                         {op}
                       </div>
                     ))}
-
                     <div style={{ height: '1px', background: darkMode ? '#334155' : '#f1f5f9', margin: '4px 0' }}></div>
-
                     <div onClick={() => { setDropdownOperadorAberto(false); setModalOperadoresAberto(true); }} style={{ padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', color: darkMode ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Settings size={16} /> Gerenciar Equipe
                     </div>
-
                   </div>
                 </>
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* 2. BARRA DE FERRAMENTAS (Apenas ícones no celular) */}
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
               
-              {/* BOTÃO DO MODO ESCURO */}
-              <button onClick={() => setDarkMode(!darkMode)} style={{ background: darkMode ? '#1e293b' : '#ffffff', border: '1px solid', borderColor: darkMode ? '#334155' : '#e2e8f0', borderRadius: '10px', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '6px', color: darkMode ? '#cbd5e1' : '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
-                {darkMode ? <Sun size={14} /> : <Moon size={14} />} {darkMode ? 'Claro' : 'Escuro'}
+              <button onClick={() => setDarkMode(!darkMode)} title="Alternar Tema" style={{ background: darkMode ? '#1e293b' : '#ffffff', border: '1px solid', borderColor: darkMode ? '#334155' : '#e2e8f0', borderRadius: '14px', padding: '10px', display: 'flex', alignItems: 'center', gap: '6px', color: darkMode ? '#cbd5e1' : '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: '0.2s' }}>
+                {darkMode ? <Sun size={18} /> : <Moon size={18} />} 
+                <span className="hidden sm:inline">{darkMode ? 'Claro' : 'Escuro'}</span>
+              </button>
+              
+              <button onClick={() => setModoPrivacidade(!modoPrivacidade)} title="Modo Privacidade" style={{ background: darkMode ? '#1e293b' : '#ffffff', border: '1px solid', borderColor: darkMode ? '#334155' : '#e2e8f0', borderRadius: '14px', padding: '10px', display: 'flex', alignItems: 'center', gap: '6px', color: darkMode ? '#cbd5e1' : '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: '0.2s' }}>
+                {modoPrivacidade ? <EyeOff size={18} /> : <Eye size={18} />} 
+                <span className="hidden sm:inline">{modoPrivacidade ? 'Mostrar' : 'Ocultar'}</span>
               </button>
 
-              <button onClick={baixarBalancete} style={{ background: darkMode ? '#1e3a8a' : '#eff6ff', border: 'none', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '6px', color: darkMode ? '#60a5fa' : '#2563eb', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}>
-                <Download size={14} /> Balancete
+              <button onClick={baixarBalancete} title="Baixar Balancete PDF" style={{ background: darkMode ? '#1e3a8a' : '#eff6ff', border: 'none', borderRadius: '14px', padding: '10px', display: 'flex', alignItems: 'center', gap: '6px', color: darkMode ? '#60a5fa' : '#2563eb', cursor: 'pointer', fontWeight: 700, fontSize: '13px', transition: '0.2s' }}>
+                <Download size={18} /> 
+                <span className="hidden sm:inline">Balancete</span>
               </button>
               
-              <button onClick={() => setModoPrivacidade(!modoPrivacidade)} style={{ background: darkMode ? '#1e293b' : '#ffffff', border: '1px solid', borderColor: darkMode ? '#334155' : '#e2e8f0', borderRadius: '10px', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '6px', color: darkMode ? '#cbd5e1' : '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
-                {modoPrivacidade ? <EyeOff size={14} /> : <Eye size={14} />} {modoPrivacidade ? 'Mostrar' : 'Ocultar'}
+              <button onClick={carregarDados} title="Atualizar Dados" style={{ background: darkMode ? '#134e4a' : '#f0fdfa', border: 'none', borderRadius: '14px', padding: '10px', display: 'flex', alignItems: 'center', gap: '6px', color: darkMode ? '#2dd4bf' : '#0d9488', cursor: 'pointer', fontWeight: 700, fontSize: '13px', transition: '0.2s' }}>
+                <RefreshCw size={18} /> 
+                <span className="hidden sm:inline">Atualizar</span>
               </button>
-              
-              <button onClick={carregarDados} style={{ background: darkMode ? '#134e4a' : '#f0fdfa', border: 'none', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '6px', color: darkMode ? '#2dd4bf' : '#0d9488', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}>
-                <RefreshCw size={14} /> Atualizar
-              </button>
+
             </div>
-
           </div>
-        </div>
 
         {isOffline && <div className="cartao" style={{ backgroundColor: darkMode ? '#78350f' : '#fef3c7', borderColor: darkMode ? '#92400e' : '#fde68a', color: darkMode ? '#fde68a' : '#92400e', padding: '16px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}><AlertCircle size={20}/> MODO OFFLINE ATIVO</div>}
         {!isOffline && filaOffline.length > 0 && (
@@ -582,7 +743,17 @@ export default function App() {
           <div style={{ paddingBottom: '90px' }}>
             <DashboardOverview saldoCaixa={saldoCaixa} totalReceitas={totalReceitas} totalDespesas={totalDespesas} receitasPix={receitasPix} receitasDinheiro={receitasDinheiro} modoPrivacidade={modoPrivacidade} />
             <AcampanteList termoBusca={termoBusca} setTermoBusca={setTermoBusca} acampantesFiltrados={acampantesFiltrados} setAcampanteSelecionado={setAcampanteSelecionado} mostrarApenasDevedores={mostrarApenasDevedores} setMostrarApenasDevedores={setMostrarApenasDevedores} modoLote={modoLote} setModoLote={setModoLote} selecionadosLote={selecionadosLote} setSelecionadosLote={setSelecionadosLote} setModalLoteAberto={setModalLoteAberto} filtroCategoria={filtroCategoria} setFiltroCategoria={setFiltroCategoria} />
-            <PaymentModal acampanteSelecionado={acampanteSelecionado} setAcampanteSelecionado={setAcampanteSelecionado} enviarNovoPagamento={enviarNovoPagamento} novoPagamento={novoPagamento} setNovoPagamento={setNovoPagamento} formaPagamentoAdicional={formaPagamentoAdicional} setFormaPagamentoAdicional={setFormaPagamentoAdicional} />
+            <PaymentModal 
+              acampanteSelecionado={acampanteSelecionado} 
+              setAcampanteSelecionado={setAcampanteSelecionado} 
+              enviarNovoPagamento={enviarNovoPagamento} 
+              novoPagamento={novoPagamento} 
+              setNovoPagamento={setNovoPagamento} 
+              formaPagamentoAdicional={formaPagamentoAdicional} 
+              setFormaPagamentoAdicional={setFormaPagamentoAdicional}
+              arquivoAnexoPagamento={arquivoAnexoPagamento}
+              setArquivoAnexoPagamento={setArquivoAnexoPagamento}
+            />
           </div>
         )}
         
@@ -670,7 +841,36 @@ export default function App() {
           formaPagamento={formaPagamento} setFormaPagamento={setFormaPagamento} 
           carregando={carregando} 
           observacao={observacao} 
-          setObservacao={setObservacao} />
+          setObservacao={setObservacao} 
+          
+          /* ... suas props antigas continuam aqui ... */
+          arquivoAnexo={arquivoAnexo}
+          setArquivoAnexo={setArquivoAnexo}
+          />
+        
+        )}
+        
+
+        {/* NOVO MODAL DE EXCLUSÃO CUSTOMIZADO */}
+        {idParaExcluir && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
+            <div className="bg-white" style={{ width: '90%', maxWidth: '350px', borderRadius: '24px', padding: '24px', animation: 'slideUp 0.2s ease-out', textAlign: 'center', backgroundColor: darkMode ? '#1e293b' : '#ffffff', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}` }}>
+              <div style={{ backgroundColor: '#fee2e2', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                <Trash2 size={28} color="#ef4444" />
+              </div>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', color: darkMode ? '#f8fafc' : '#0f172a' }}>Excluir Registro?</h3>
+              <p style={{ margin: '0 0 24px 0', fontSize: '15px', color: darkMode ? '#94a3b8' : '#64748b' }}>Esta ação não pode ser desfeita. O valor será removido do balanço geral.</p>
+              
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button onClick={() => setIdParaExcluir(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: darkMode ? '#334155' : '#f1f5f9', color: darkMode ? '#cbd5e1' : '#475569', fontWeight: '700', fontSize: '15px', cursor: 'pointer', transition: '0.2s' }}>
+                  Cancelar
+                </button>
+                <button onClick={confirmarExclusao} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#ef4444', color: '#ffffff', fontWeight: '700', fontSize: '15px', cursor: 'pointer', transition: '0.2s', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}>
+                  Sim, Excluir
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         
       </div>

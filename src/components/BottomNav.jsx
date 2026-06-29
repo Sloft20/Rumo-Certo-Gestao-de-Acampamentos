@@ -17,100 +17,105 @@ export default function BottomNav({ telaAtual, setTelaAtual }) {
       <style>
         {`
           /* ========================================== */
-          /* ESTILO MOBILE: Cápsula Flutuante na base   */
+          /* ESTILO MOBILE: Barra Fixa e Fina na Base   */
           /* ========================================== */
           .menu-navegacao {
             position: fixed;
-            bottom: 24px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            max-width: 400px;
-            background-color: rgba(15, 51, 56, 0.95);
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: rgba(15, 51, 56, 0.98);
             display: flex;
             justify-content: space-around;
-            padding: 10px 8px;
-            border-radius: 32px;
-            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.15);
+            align-items: center;
+            /* Padding inteligente para não encostar na barra de gestos do iPhone/Android */
+            padding: 8px 8px calc(8px + env(safe-area-inset-bottom)) 8px;
+            border-radius: 24px 24px 0 0; /* Arredonda apenas o topo */
+            box-shadow: 0 -4px 25px rgba(0,0,0,0.15);
             z-index: 1000;
-            border: 1px solid #e2e8f0;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(12px);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           }
 
           body.dark .menu-navegacao {
-            background-color: rgba(30, 41, 59, 0.95);
-            border-color: #334155;
-            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+            background-color: rgba(15, 23, 42, 0.98);
+            border-top: 1px solid #334155;
+            box-shadow: 0 -4px 25px rgba(0,0,0,0.5);
           }
 
+          /* BLINDAGEM SUPREMA CONTRA O CSS GLOBAL DO VITE */
           .btn-nav {
             background: none;
             border: none;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 6px;
+            gap: 4px; /* Mais coladinho (ícone e texto) */
             cursor: pointer;
-            color: #94a3b8;
+            color: #94a3b8 !important; 
             font-weight: 600;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            padding: 6px 16px;
-            border-radius: 24px;
+            padding: 4px 12px;
+            border-radius: 16px;
           }
 
-          .btn-nav:hover { color: #64748b; }
-          body.dark .btn-nav:hover { color: #cbd5e1; }
+          /* Força todos os SVGs (Lucide ou Custom) a acatarem a cor do botão */
+          .btn-nav svg {
+            stroke: currentColor !important;
+            transition: stroke 0.3s ease;
+          }
+
+          .btn-nav:hover { color: #cbd5e1 !important; }
+          body.dark .btn-nav:hover { color: #e2e8f0 !important; }
 
           .icone-container {
             position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 44px;
-            height: 44px;
+            width: 38px; /* Bolinha mais delicada */
+            height: 38px; /* Bolinha mais delicada */
             border-radius: 50%;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           }
 
           .btn-nav span {
-            font-size: 11px;
-            opacity: 0.8;
+            font-size: 10px; /* Texto minimamente mais delicado */
+            opacity: 0.85;
             transition: all 0.3s;
             white-space: nowrap;
           }
 
           /* ========================================== */
-          /* ESTADO ATIVO (CORREÇÃO DE CONTRASTE)       */
+          /* ESTADO ATIVO                               */
           /* ========================================== */
-          .btn-nav.ativo { color: #0d9488; }
-          body.dark .btn-nav.ativo { color: #2dd4bf; }
+          .btn-nav.ativo { color: #0d9488 !important; }
+          body.dark .btn-nav.ativo { color: #2dd4bf !important; }
 
-          /* Bolinha sólida com ícone branco (Modo Claro) */
           .btn-nav.ativo .icone-container {
-            background-color: #0d9488; 
-            color: #ffffff; 
-            transform: translateY(-4px);
+            background-color: #0d9488 !important; 
+            color: #ffffff !important; 
+            transform: translateY(-2px); /* Pulinho menor */
             box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4);
           }
           
-          /* Bolinha neon com ícone escuro (Modo Escuro) */
           body.dark .btn-nav.ativo .icone-container {
-            background-color: #2dd4bf; 
-            color: #0f172a; 
+            background-color: #2dd4bf !important; 
+            color: #0f172a !important; 
             box-shadow: 0 4px 12px rgba(45, 212, 191, 0.3);
           }
 
           .btn-nav.ativo span {
             opacity: 1;
             font-weight: 800;
-            transform: translateY(-2px);
+            transform: translateY(-1px);
           }
 
           .toggle-btn { display: none; }
 
           /* ========================================== */
-          /* ESTILO DESKTOP: Lateral Toda e Expansível  */
+          /* ESTILO DESKTOP                             */
           /* ========================================== */
           @media (min-width: 768px) {
             .menu-navegacao {
@@ -124,6 +129,7 @@ export default function BottomNav({ telaAtual, setTelaAtual }) {
               justify-content: center;
               padding: 24px 12px;
               border-radius: 0 32px 32px 0;
+              border-top: none;
               align-items: ${isExpanded ? 'flex-start' : 'center'};
             }
 
@@ -140,15 +146,15 @@ export default function BottomNav({ telaAtual, setTelaAtual }) {
               transform: ${isExpanded ? 'none' : 'translateX(-50%)'};
               background: none;
               border: none;
-              color: rgb(148, 163, 184);
+              color: #94a3b8 !important;
               cursor: pointer;
               padding: 8px;
               border-radius: 12px;
               transition: 0.2s;
             }
 
-            .toggle-btn:hover { background-color: rgba(0,0,0,0.05); color: #0f172a; }
-            body.dark .toggle-btn:hover { background-color: rgba(255,255,255,0.05); color: #f8fafc; }
+            .toggle-btn:hover { background-color: rgba(0,0,0,0.05); color: #0f172a !important; }
+            body.dark .toggle-btn:hover { background-color: rgba(255,255,255,0.05); color: #f8fafc !important; }
 
             .btn-nav {
               flex-direction: row;
@@ -194,7 +200,7 @@ export default function BottomNav({ telaAtual, setTelaAtual }) {
               className={`btn-nav ${isActive ? 'ativo' : ''}`}
             >
               <div className="icone-container">
-                <Icon size={22} strokeWidth={2.5} className="icone-svg" />
+                <Icon size={20} strokeWidth={2.5} className="icone-svg" />
               </div>
               <span>{item.label}</span>
             </button>
