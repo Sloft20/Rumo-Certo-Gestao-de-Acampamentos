@@ -14,7 +14,6 @@ import BottomNav from './components/BottomNav';
 import { gerarBalancetePDF } from './utils/pdfGenerator';
 import PainelMetas from './components/PainelMetas';
 
-const API_URL = "https://script.google.com/macros/s/AKfycbyIOg66JUPX6saMRl6d2Bj_WSak-ueJovBfs17Aovf_GZ4ETWsY4QP36OPGN5Gn8hDKhA/exec";
 
 export default function App() {
   const [telaAtual, setTelaAtual] = useState('LISTA'); 
@@ -356,48 +355,83 @@ export default function App() {
   
 
   const sincronizarFila = async () => {
-    if (isOffline) return;
-    setMensagemCarregando('Sincronizando dados offline...'); setCarregando(true);
-    let falhas = [];
-    for (let reg of filaOffline) {
-      try { await fetch(API_URL, { method: 'POST', body: JSON.stringify(reg) }); } 
-      catch (e) { falhas.push(reg); }
+    if (isOffline || filaOffline.length === 0) return;
+    setMensagemCarregando('A sincronizar dados offline...'); 
+    setCarregando(true);
+    
+    try {
+      const { error } = await supabase.from('transacoes').insert(filaOffline);
+      if (error) throw error;
+      
+      setFilaOffline([]); 
+      await localforage.removeItem('fila_acampamento');
+      toast.success('Todos os registos offline foram sincronizados!');
+      carregarDados();
+    } catch (e) {
+      console.error("Erro na sincronização:", e);
+      toast.error('Não foi possível sincronizar alguns registos.');
+    } finally {
+      setCarregando(false);
     }
-    setFilaOffline(falhas); await localforage.setItem('fila_acampamento', falhas); 
-    if (falhas.length === 0) carregarDados(); else setCarregando(false);
   };
 
   const enviarPagamentoLote = async (e) => {
     e.preventDefault();
-    if (!valorLote || isNaN(valorLote) || valorLote <= 0) { toast.error('Insira um valor válido'); return; }
+    if (!valorLote || isNaN(valorLote) || Number(valorLote) <= 0) { 
+      toast.error('Insere um valor válido'); 
+      return; 
+    }
 
     const totalDevedor = selecionadosLote.reduce((acc, curr) => acc + curr['Saldo Devedor'], 0);
     const valorRecebido = parseFloat(valorLote);
     
-    setMensagemCarregando('Processando pagamento em lote...'); setCarregando(true);
-    let novaFilaLocal = [...filaOffline];
+    setMensagemCarregando('A processar pagamento em lote...'); 
+    setCarregando(true);
+
+    const agora = new Date();
+    const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+    const horaLocal = agora.toTimeString().split(' ')[0];
+
+    const novasTransacoes = [];
 
     for (let acampante of selecionadosLote) {
       if (acampante['Saldo Devedor'] <= 0) continue; 
+      
       const proporcao = acampante['Saldo Devedor'] / totalDevedor;
       const valorAAbater = valorRecebido * proporcao;
 
-      const registroLote = {
-        id: Date.now().toString() + Math.floor(Math.random() * 1000),
-        acao: "atualizar_pagamento", edicao: edicaoAtiva, operador: operadorCaixa || 'Não identificado',
-        hora: "'" + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        nome: acampante.Descrição, valorNovo: valorAAbater.toFixed(2), formaPagamento: formaPagamentoLote
-      };
-
-      if (navigator.onLine) {
-        try { await fetch(API_URL, { method: 'POST', body: JSON.stringify(registroLote) }); } 
-        catch (e) { novaFilaLocal.push(registroLote); }
-      } else { novaFilaLocal.push(registroLote); }
+      novasTransacoes.push({
+        tipo: 'ENTRADA',
+        descricao: acampante.Descrição,
+        categoria: 'Pagamento Adicional',
+        valor_total: null,
+        valor_pago: parseFloat(valorAAbater.toFixed(2)),
+        forma_pagamento: formaPagamentoLote,
+        operador: operadorCaixa || 'Não identificado',
+        observacao: 'Pagamento em lote familiar.',
+        data_transacao: dataLocal,
+        hora_transacao: horaLocal,
+        edicao: edicaoAtiva
+      });
     }
 
-    setFilaOffline(novaFilaLocal); localforage.setItem('fila_acampamento', novaFilaLocal);
-    carregarDados(); setModalLoteAberto(false); setModoLote(false); setSelecionadosLote([]); setValorLote('');
-    toast.success('Pagamento em Lote processado!');
+    try {
+      const { error } = await supabase.from('transacoes').insert(novasTransacoes);
+      if (error) throw error;
+
+      toast.success('Pagamento em lote processado com sucesso!');
+      setModalLoteAberto(false); 
+      setModoLote(false); 
+      setSelecionadosLote([]); 
+      setValorLote('');
+      carregarDados();
+
+    } catch (error) {
+      console.error("Erro ao processar lote:", error);
+      toast.error('Erro ao guardar o lote no Supabase.');
+    } finally {
+      setCarregando(false);
+    }
   };
   const fazerUploadAnexo = async (arquivo) => {
     if (!arquivo) return null;
