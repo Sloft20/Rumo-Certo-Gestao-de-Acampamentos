@@ -26,6 +26,7 @@ export default function App() {
   const [dropdownOperadorAberto, setDropdownOperadorAberto] = useState(false);
   const [filtroCategoria, setFiltroCategoria] = useState('TODOS');
   const [observacao, setObservacao] = useState('');
+  const [idParaExcluir, setIdParaExcluir] = useState(null);
 
   const [listaEdicoes, setListaEdicoes] = useState(['2027']);
 
@@ -304,16 +305,27 @@ export default function App() {
     setTelaAtual('NOVO');
   };
   
-  const excluirRegistro = async (id) => {
+  const excluirRegistro = (id) => {
     if(!id) { toast.error("Este registro antigo não possui ID."); return; }
-    if(!window.confirm("Tem certeza que deseja excluir este lançamento?")) return;
     if (!navigator.onLine) { toast.error("Você precisa estar online para excluir."); return; }
+    setIdParaExcluir(id); // Abre o nosso modal moderno
+  };
+
+  const confirmarExclusao = async () => {
+    if (!idParaExcluir) return;
+    setMensagemCarregando('Excluindo registro...'); 
+    setCarregando(true);
+    const idAlvo = idParaExcluir;
+    setIdParaExcluir(null); // Fecha o modal imediatamente
     
-    setMensagemCarregando('Excluindo registro...'); setCarregando(true);
     try {
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ acao: 'delete', id: id }) });
-      carregarDados(); toast.success("Registro excluído com sucesso!");
-    } catch (e) { toast.error("Erro ao excluir."); setCarregando(false); }
+      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ acao: 'delete', id: idAlvo }) });
+      carregarDados(); 
+      toast.success("Registro excluído com sucesso!");
+    } catch (e) { 
+      toast.error("Erro ao excluir."); 
+      setCarregando(false); 
+    }
   };
 
   const sincronizarFila = async () => {
@@ -671,6 +683,28 @@ export default function App() {
           carregando={carregando} 
           observacao={observacao} 
           setObservacao={setObservacao} />
+        )}
+
+        {/* NOVO MODAL DE EXCLUSÃO CUSTOMIZADO */}
+        {idParaExcluir && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
+            <div className="bg-white" style={{ width: '90%', maxWidth: '350px', borderRadius: '24px', padding: '24px', animation: 'slideUp 0.2s ease-out', textAlign: 'center', backgroundColor: darkMode ? '#1e293b' : '#ffffff', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}` }}>
+              <div style={{ backgroundColor: '#fee2e2', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                <Trash2 size={28} color="#ef4444" />
+              </div>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', color: darkMode ? '#f8fafc' : '#0f172a' }}>Excluir Registro?</h3>
+              <p style={{ margin: '0 0 24px 0', fontSize: '15px', color: darkMode ? '#94a3b8' : '#64748b' }}>Esta ação não pode ser desfeita. O valor será removido do balanço geral.</p>
+              
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button onClick={() => setIdParaExcluir(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: darkMode ? '#334155' : '#f1f5f9', color: darkMode ? '#cbd5e1' : '#475569', fontWeight: '700', fontSize: '15px', cursor: 'pointer', transition: '0.2s' }}>
+                  Cancelar
+                </button>
+                <button onClick={confirmarExclusao} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#ef4444', color: '#ffffff', fontWeight: '700', fontSize: '15px', cursor: 'pointer', transition: '0.2s', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}>
+                  Sim, Excluir
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         
       </div>
