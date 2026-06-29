@@ -353,16 +353,7 @@ export default function App() {
     setTelaAtual('NOVO');
   };
   
-  const excluirRegistro = (id) => {
-    if(!id) { toast.error("Este registro antigo não possui ID."); return; }
-    if (!navigator.onLine) { toast.error("Você precisa estar online para excluir."); return; }
-    
-    setMensagemCarregando('Excluindo registro...'); setCarregando(true);
-    try {
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ acao: 'delete', id: id }) });
-      carregarDados(); toast.success("Registro excluído com sucesso!");
-    } catch (e) { toast.error("Erro ao excluir."); setCarregando(false); }
-  };
+  
 
   const sincronizarFila = async () => {
     if (isOffline) return;
