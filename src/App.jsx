@@ -466,8 +466,55 @@ export default function App() {
     const valorPagoNum = parseFloat(String(valorPago).replace(',', '.'));
     const valorTotalNum = valorTotal ? parseFloat(String(valorTotal).replace(',', '.')) : null;
 
+    const agora = new Date();
+    const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+    const horaLocal = agora.toTimeString().split(' ')[0];
+
+    // Objeto formatado exatamente como a tabela do Supabase exige
+    const payloadLancamento = {
+      tipo: tipo,
+      descricao: descricao,
+      categoria: categoriaFinal,
+      valor_total: valorTotalNum,
+      valor_pago: valorPagoNum,
+      forma_pagamento: formaPagamento,
+      operador: operadorCaixa || 'Não identificado', 
+      observacao: observacao,
+      data_transacao: dataLocal,
+      hora_transacao: horaLocal,
+      edicao: edicaoAtiva
+    };
+
+    // ====================================================
+    // DESVIO OFFLINE: Sem internet? Salva na memória local
+    // ====================================================
+    if (!navigator.onLine) {
+      if (arquivoAnexo) {
+        toast.error("O modo offline não suporta envio de fotos.");
+        setCarregando(false);
+        return;
+      }
+      if (idEmEdicao) {
+        toast.error("Você precisa estar online para editar registros antigos.");
+        setCarregando(false);
+        return;
+      }
+
+      const novaFila = [...filaOffline, payloadLancamento];
+      setFilaOffline(novaFila);
+      await localforage.setItem('fila_acampamento', novaFila);
+
+      setDescricao(''); setValorTotal(''); setValorPago(''); setObservacao(''); setNovaCategoria('');
+      setTelaAtual('LISTA');
+      setCarregando(false);
+      toast.success("Salvo offline! Clique em 'Sincronizar' quando a rede voltar.");
+      return;
+    }
+
+    // ====================================================
+    // FLUXO ONLINE NORMAL
+    // ====================================================
     try {
-      // --- 1. FAZ O UPLOAD DA FOTO PRIMEIRO (SE HOUVER) ---
       let urlAnexoGerada = null;
       if (arquivoAnexo) {
         setMensagemCarregando('Anexando comprovante...');
@@ -476,61 +523,29 @@ export default function App() {
 
       if (idEmEdicao) {
         const payloadEdicao = {
-          tipo: tipo,
-          descricao: descricao,
-          categoria: categoriaFinal,
-          valor_total: valorTotalNum,
-          valor_pago: valorPagoNum,
-          forma_pagamento: formaPagamento,
-          observacao: observacao,
+          ...payloadLancamento,
           foi_editado: true,
           updated_at: new Date().toISOString()
         };
+        // Na edição, preservamos a data e hora originais em que o registro nasceu
+        delete payloadEdicao.data_transacao;
+        delete payloadEdicao.hora_transacao;
 
-        // Se a pessoa subiu uma foto nova durante a edição, trocamos a URL
         if (urlAnexoGerada) payloadEdicao.anexo_url = urlAnexoGerada;
 
-        const { error } = await supabase
-          .from('transacoes')
-          .update(payloadEdicao)
-          .eq('id', idEmEdicao);
-
+        const { error } = await supabase.from('transacoes').update(payloadEdicao).eq('id', idEmEdicao);
         if (error) throw error;
         toast.success("Registro atualizado com sucesso!");
-        
+
       } else {
-        const agora = new Date();
-        const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
-        const horaLocal = agora.toTimeString().split(' ')[0];
+        if (urlAnexoGerada) payloadLancamento.anexo_url = urlAnexoGerada;
 
-        const { error } = await supabase
-          .from('transacoes')
-          .insert([{
-            tipo: tipo,
-            descricao: descricao,
-            categoria: categoriaFinal,
-            valor_total: valorTotalNum,
-            valor_pago: valorPagoNum,
-            forma_pagamento: formaPagamento,
-            operador: operadorCaixa, 
-            observacao: observacao,
-            data_transacao: dataLocal,
-            hora_transacao: horaLocal,
-            anexo_url: urlAnexoGerada // <-- LINK SALVO AQUI!
-          }]);
-
+        const { error } = await supabase.from('transacoes').insert([payloadLancamento]);
         if (error) throw error;
         toast.success("Lançamento salvo com sucesso!");
       }
 
-      // Limpa os dados da memória
-      setDescricao('');
-      setValorTotal('');
-      setValorPago('');
-      setObservacao('');
-      setNovaCategoria('');
-      setArquivoAnexo(null); // <-- Zera o arquivo anexado
-      setIdEmEdicao(null);
+      setDescricao(''); setValorTotal(''); setValorPago(''); setObservacao(''); setNovaCategoria(''); setArquivoAnexo(null); setIdEmEdicao(null);
       setTelaAtual('LISTA');
       carregarDados();
 
