@@ -74,7 +74,7 @@ export default function App() {
   const [categoriasExtras, setCategoriasExtras] = useState({ ENTRADA: [], SAIDA: [] });
   const categoriasPadrao = {
     ENTRADA: ['Inscrição', 'Doação', 'Diária'],
-    SAIDA: ['Chácara', 'Alimentação', 'Bebidas', 'Brindes', 'Produtos de Limpeza', 'Auxílio Van']
+    SAIDA: ['Chácara', 'Alimentação', 'Bebidas', 'Brindes', 'Produtos de Limpeza', 'Auxílio Van', 'Retirada']
   };
 
   const listaCategoriasAtuais = [...categoriasPadrao[tipo], ...categoriasExtras[tipo]];
@@ -94,6 +94,27 @@ export default function App() {
       localStorage.setItem('tema_rumo_certo', 'claro');
     }
   }, [darkMode]);
+  // ==========================================
+  // TELAS VIVAS (SUPABASE REALTIME)
+  // ==========================================
+  useEffect(() => {
+    // Inscreve a aplicação para ouvir qualquer alteração na tabela de transações
+    const radarSupabase = supabase.channel('mudancas-banco')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'transacoes' },
+        (payload) => {
+          console.log('🔄 Sincronizando tela viva em segundo plano!', payload);
+          carregarDados(true); // O true faz o carregamento acontecer sem travar a tela com loader
+        }
+      )
+      .subscribe();
+
+    // Limpa o radar se a pessoa fechar a aplicação
+    return () => {
+      supabase.removeChannel(radarSupabase);
+    };
+  }, []);
 
   const baixarBalancete = () => {
     const totais = { receitas: totalReceitas, despesas: totalDespesas, saldo: saldoCaixa, pix: receitasPix, dinheiro: receitasDinheiro };
@@ -152,18 +173,19 @@ export default function App() {
     setTelaAtual('LISTA');
   };
 
-  const carregarDados = async () => {
-    console.log("🔎 1. Iniciando busca no Supabase...");
-    setMensagemCarregando('Atualizando dados...'); // <-- Define o texto correto da ação!
-    setCarregando(true);
+const carregarDados = async (silencioso = false) => {
+    if (!silencioso) {
+      console.log("🔎 Iniciando busca manual no Supabase...");
+      setMensagemCarregando('Atualizando dados...'); 
+      setCarregando(true);
+    }
+    
     try {
       const { data, error } = await supabase
         .from('transacoes')
         .select('*')
         .order('data_transacao', { ascending: false })
         .order('hora_transacao', { ascending: false });
-
-      console.log("🔎 2. Resposta do Supabase:", { data, error });
 
       if (error) throw error;
 
@@ -184,17 +206,16 @@ export default function App() {
         'anexo_url': item.anexo_url
       }));
 
-      console.log("🔎 3. Dados formatados prontos para a tela:", dadosFormatados);
-      
       setDadosPlanilha(dadosFormatados); 
       
-      console.log("🔎 4. Tela atualizada com sucesso!");
     } catch (error) {
-      console.error("🚨 ERRO GRAVE ao buscar dados:", error);
-      toast.error("Erro ao conectar com o banco de dados.");
+      console.error("🚨 ERRO ao buscar dados:", error);
+      if (!silencioso) toast.error("Erro ao conectar com o banco de dados.");
     } finally {
-      setCarregando(false);
-      setMensagemCarregando(''); // <-- Faxina: zera a memória ao terminar!
+      if (!silencioso) {
+        setCarregando(false);
+        setMensagemCarregando(''); 
+      }
     }
   };
 
@@ -204,6 +225,7 @@ export default function App() {
 
   const { totalReceitas, totalDespesas, saldoCaixa, receitasPix, receitasDinheiro } = useMemo(() => {
     let pix = 0; let dinheiro = 0;
+    
     const receitas = dadosDaEdicao.filter(d => obterColuna(d, 'Tipo') === 'ENTRADA').reduce((acc, curr) => {
         const valor = extrairNumero(obterColuna(curr, 'Valor Pago'));
         const forma = (obterColuna(curr, 'Forma de Pagamento') || '').toUpperCase();
@@ -211,10 +233,19 @@ export default function App() {
         if (forma.includes('DINHEIRO')) dinheiro += valor;
         return acc + valor;
     }, 0);
-    const despesas = dadosDaEdicao.filter(d => obterColuna(d, 'Tipo') === 'SAIDA').reduce((acc, curr) => acc + extrairNumero(obterColuna(curr, 'Valor Pago')), 0);
-    return { totalReceitas: receitas, totalDespesas: despesas, saldoCaixa: receitas - despesas, receitasPix: pix, receitasDinheiro: dinheiro };
-  }, [dadosDaEdicao]);
 
+    // Despesas operacionais puras (Removemos retiradas de lucro para não inflar as métricas de gastos na tela)
+    const despesas = dadosDaEdicao
+      .filter(d => obterColuna(d, 'Tipo') === 'SAIDA' && !['Retirada', 'Lucro'].includes(obterColuna(d, 'Categoria')))
+      .reduce((acc, curr) => acc + extrairNumero(obterColuna(curr, 'Valor Pago')), 0);
+
+    // Todas as saídas (usado exclusivamente para o cálculo real do dinheiro que tem que estar no caixa físico)
+    const todasSaidas = dadosDaEdicao
+      .filter(d => obterColuna(d, 'Tipo') === 'SAIDA')
+      .reduce((acc, curr) => acc + extrairNumero(obterColuna(curr, 'Valor Pago')), 0);
+
+    return { totalReceitas: receitas, totalDespesas: despesas, saldoCaixa: receitas - todasSaidas, receitasPix: pix, receitasDinheiro: dinheiro };
+  }, [dadosDaEdicao]);
   const agrupamento = useMemo(() => {
     return dadosDaEdicao.filter(d => obterColuna(d, 'Tipo') === 'ENTRADA' && obterColuna(d, 'Descrição')).reduce((acc, curr) => {
         const nome = obterColuna(curr, 'Descrição').trim();
