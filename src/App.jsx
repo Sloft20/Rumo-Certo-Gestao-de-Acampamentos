@@ -14,7 +14,6 @@ import BottomNav from './components/BottomNav';
 import { gerarBalancetePDF } from './utils/pdfGenerator';
 import PainelMetas from './components/PainelMetas';
 
-const API_URL = "https://script.google.com/macros/s/AKfycbyIOg66JUPX6saMRl6d2Bj_WSak-ueJovBfs17Aovf_GZ4ETWsY4QP36OPGN5Gn8hDKhA/exec";
 
 export default function App() {
   const [telaAtual, setTelaAtual] = useState('LISTA'); 
@@ -75,7 +74,7 @@ export default function App() {
   const [categoriasExtras, setCategoriasExtras] = useState({ ENTRADA: [], SAIDA: [] });
   const categoriasPadrao = {
     ENTRADA: ['Inscrição', 'Doação', 'Diária'],
-    SAIDA: ['Chácara', 'Alimentação', 'Bebidas', 'Brindes', 'Produtos de Limpeza', 'Auxílio Van']
+    SAIDA: ['Chácara', 'Alimentação', 'Bebidas', 'Brindes', 'Produtos de Limpeza', 'Auxílio Van', 'Retirada']
   };
 
   const listaCategoriasAtuais = [...categoriasPadrao[tipo], ...categoriasExtras[tipo]];
@@ -95,6 +94,27 @@ export default function App() {
       localStorage.setItem('tema_rumo_certo', 'claro');
     }
   }, [darkMode]);
+  // ==========================================
+  // TELAS VIVAS (SUPABASE REALTIME)
+  // ==========================================
+  useEffect(() => {
+    // Inscreve a aplicação para ouvir qualquer alteração na tabela de transações
+    const radarSupabase = supabase.channel('mudancas-banco')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'transacoes' },
+        (payload) => {
+          console.log('🔄 Sincronizando tela viva em segundo plano!', payload);
+          carregarDados(true); // O true faz o carregamento acontecer sem travar a tela com loader
+        }
+      )
+      .subscribe();
+
+    // Limpa o radar se a pessoa fechar a aplicação
+    return () => {
+      supabase.removeChannel(radarSupabase);
+    };
+  }, []);
 
   const baixarBalancete = () => {
     const totais = { receitas: totalReceitas, despesas: totalDespesas, saldo: saldoCaixa, pix: receitasPix, dinheiro: receitasDinheiro };
@@ -153,18 +173,19 @@ export default function App() {
     setTelaAtual('LISTA');
   };
 
-  const carregarDados = async () => {
-    console.log("🔎 1. Iniciando busca no Supabase...");
-    setMensagemCarregando('Atualizando dados...'); // <-- Define o texto correto da ação!
-    setCarregando(true);
+const carregarDados = async (silencioso = false) => {
+    if (!silencioso) {
+      console.log("🔎 Iniciando busca manual no Supabase...");
+      setMensagemCarregando('Atualizando dados...'); 
+      setCarregando(true);
+    }
+    
     try {
       const { data, error } = await supabase
         .from('transacoes')
         .select('*')
         .order('data_transacao', { ascending: false })
         .order('hora_transacao', { ascending: false });
-
-      console.log("🔎 2. Resposta do Supabase:", { data, error });
 
       if (error) throw error;
 
@@ -185,17 +206,16 @@ export default function App() {
         'anexo_url': item.anexo_url
       }));
 
-      console.log("🔎 3. Dados formatados prontos para a tela:", dadosFormatados);
-      
       setDadosPlanilha(dadosFormatados); 
       
-      console.log("🔎 4. Tela atualizada com sucesso!");
     } catch (error) {
-      console.error("🚨 ERRO GRAVE ao buscar dados:", error);
-      toast.error("Erro ao conectar com o banco de dados.");
+      console.error("🚨 ERRO ao buscar dados:", error);
+      if (!silencioso) toast.error("Erro ao conectar com o banco de dados.");
     } finally {
-      setCarregando(false);
-      setMensagemCarregando(''); // <-- Faxina: zera a memória ao terminar!
+      if (!silencioso) {
+        setCarregando(false);
+        setMensagemCarregando(''); 
+      }
     }
   };
 
@@ -205,6 +225,7 @@ export default function App() {
 
   const { totalReceitas, totalDespesas, saldoCaixa, receitasPix, receitasDinheiro } = useMemo(() => {
     let pix = 0; let dinheiro = 0;
+    
     const receitas = dadosDaEdicao.filter(d => obterColuna(d, 'Tipo') === 'ENTRADA').reduce((acc, curr) => {
         const valor = extrairNumero(obterColuna(curr, 'Valor Pago'));
         const forma = (obterColuna(curr, 'Forma de Pagamento') || '').toUpperCase();
@@ -212,10 +233,19 @@ export default function App() {
         if (forma.includes('DINHEIRO')) dinheiro += valor;
         return acc + valor;
     }, 0);
-    const despesas = dadosDaEdicao.filter(d => obterColuna(d, 'Tipo') === 'SAIDA').reduce((acc, curr) => acc + extrairNumero(obterColuna(curr, 'Valor Pago')), 0);
-    return { totalReceitas: receitas, totalDespesas: despesas, saldoCaixa: receitas - despesas, receitasPix: pix, receitasDinheiro: dinheiro };
-  }, [dadosDaEdicao]);
 
+    // Despesas operacionais puras (Removemos retiradas de lucro para não inflar as métricas de gastos na tela)
+    const despesas = dadosDaEdicao
+      .filter(d => obterColuna(d, 'Tipo') === 'SAIDA' && !['Retirada', 'Lucro'].includes(obterColuna(d, 'Categoria')))
+      .reduce((acc, curr) => acc + extrairNumero(obterColuna(curr, 'Valor Pago')), 0);
+
+    // Todas as saídas (usado exclusivamente para o cálculo real do dinheiro que tem que estar no caixa físico)
+    const todasSaidas = dadosDaEdicao
+      .filter(d => obterColuna(d, 'Tipo') === 'SAIDA')
+      .reduce((acc, curr) => acc + extrairNumero(obterColuna(curr, 'Valor Pago')), 0);
+
+    return { totalReceitas: receitas, totalDespesas: despesas, saldoCaixa: receitas - todasSaidas, receitasPix: pix, receitasDinheiro: dinheiro };
+  }, [dadosDaEdicao]);
   const agrupamento = useMemo(() => {
     return dadosDaEdicao.filter(d => obterColuna(d, 'Tipo') === 'ENTRADA' && obterColuna(d, 'Descrição')).reduce((acc, curr) => {
         const nome = obterColuna(curr, 'Descrição').trim();
@@ -353,60 +383,86 @@ export default function App() {
     setTelaAtual('NOVO');
   };
   
-  const excluirRegistro = (id) => {
-    if(!id) { toast.error("Este registro antigo não possui ID."); return; }
-    if (!navigator.onLine) { toast.error("Você precisa estar online para excluir."); return; }
-    
-    setMensagemCarregando('Excluindo registro...'); setCarregando(true);
-    try {
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ acao: 'delete', id: id }) });
-      carregarDados(); toast.success("Registro excluído com sucesso!");
-    } catch (e) { toast.error("Erro ao excluir."); setCarregando(false); }
-  };
+  
 
   const sincronizarFila = async () => {
-    if (isOffline) return;
-    setMensagemCarregando('Sincronizando dados offline...'); setCarregando(true);
-    let falhas = [];
-    for (let reg of filaOffline) {
-      try { await fetch(API_URL, { method: 'POST', body: JSON.stringify(reg) }); } 
-      catch (e) { falhas.push(reg); }
+    if (isOffline || filaOffline.length === 0) return;
+    setMensagemCarregando('A sincronizar dados offline...'); 
+    setCarregando(true);
+    
+    try {
+      const { error } = await supabase.from('transacoes').insert(filaOffline);
+      if (error) throw error;
+      
+      setFilaOffline([]); 
+      await localforage.removeItem('fila_acampamento');
+      toast.success('Todos os registos offline foram sincronizados!');
+      carregarDados();
+    } catch (e) {
+      console.error("Erro na sincronização:", e);
+      toast.error('Não foi possível sincronizar alguns registos.');
+    } finally {
+      setCarregando(false);
     }
-    setFilaOffline(falhas); await localforage.setItem('fila_acampamento', falhas); 
-    if (falhas.length === 0) carregarDados(); else setCarregando(false);
   };
 
   const enviarPagamentoLote = async (e) => {
     e.preventDefault();
-    if (!valorLote || isNaN(valorLote) || valorLote <= 0) { toast.error('Insira um valor válido'); return; }
+    if (!valorLote || isNaN(valorLote) || Number(valorLote) <= 0) { 
+      toast.error('Insere um valor válido'); 
+      return; 
+    }
 
     const totalDevedor = selecionadosLote.reduce((acc, curr) => acc + curr['Saldo Devedor'], 0);
     const valorRecebido = parseFloat(valorLote);
     
-    setMensagemCarregando('Processando pagamento em lote...'); setCarregando(true);
-    let novaFilaLocal = [...filaOffline];
+    setMensagemCarregando('A processar pagamento em lote...'); 
+    setCarregando(true);
+
+    const agora = new Date();
+    const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+    const horaLocal = agora.toTimeString().split(' ')[0];
+
+    const novasTransacoes = [];
 
     for (let acampante of selecionadosLote) {
       if (acampante['Saldo Devedor'] <= 0) continue; 
+      
       const proporcao = acampante['Saldo Devedor'] / totalDevedor;
       const valorAAbater = valorRecebido * proporcao;
 
-      const registroLote = {
-        id: Date.now().toString() + Math.floor(Math.random() * 1000),
-        acao: "atualizar_pagamento", edicao: edicaoAtiva, operador: operadorCaixa || 'Não identificado',
-        hora: "'" + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        nome: acampante.Descrição, valorNovo: valorAAbater.toFixed(2), formaPagamento: formaPagamentoLote
-      };
-
-      if (navigator.onLine) {
-        try { await fetch(API_URL, { method: 'POST', body: JSON.stringify(registroLote) }); } 
-        catch (e) { novaFilaLocal.push(registroLote); }
-      } else { novaFilaLocal.push(registroLote); }
+      novasTransacoes.push({
+        tipo: 'ENTRADA',
+        descricao: acampante.Descrição,
+        categoria: 'Pagamento Adicional',
+        valor_total: null,
+        valor_pago: parseFloat(valorAAbater.toFixed(2)),
+        forma_pagamento: formaPagamentoLote,
+        operador: operadorCaixa || 'Não identificado',
+        observacao: 'Pagamento em lote familiar.',
+        data_transacao: dataLocal,
+        hora_transacao: horaLocal,
+        edicao: edicaoAtiva
+      });
     }
 
-    setFilaOffline(novaFilaLocal); localforage.setItem('fila_acampamento', novaFilaLocal);
-    carregarDados(); setModalLoteAberto(false); setModoLote(false); setSelecionadosLote([]); setValorLote('');
-    toast.success('Pagamento em Lote processado!');
+    try {
+      const { error } = await supabase.from('transacoes').insert(novasTransacoes);
+      if (error) throw error;
+
+      toast.success('Pagamento em lote processado com sucesso!');
+      setModalLoteAberto(false); 
+      setModoLote(false); 
+      setSelecionadosLote([]); 
+      setValorLote('');
+      carregarDados();
+
+    } catch (error) {
+      console.error("Erro ao processar lote:", error);
+      toast.error('Erro ao guardar o lote no Supabase.');
+    } finally {
+      setCarregando(false);
+    }
   };
   const fazerUploadAnexo = async (arquivo) => {
     if (!arquivo) return null;
@@ -441,8 +497,55 @@ export default function App() {
     const valorPagoNum = parseFloat(String(valorPago).replace(',', '.'));
     const valorTotalNum = valorTotal ? parseFloat(String(valorTotal).replace(',', '.')) : null;
 
+    const agora = new Date();
+    const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+    const horaLocal = agora.toTimeString().split(' ')[0];
+
+    // Objeto formatado exatamente como a tabela do Supabase exige
+    const payloadLancamento = {
+      tipo: tipo,
+      descricao: descricao,
+      categoria: categoriaFinal,
+      valor_total: valorTotalNum,
+      valor_pago: valorPagoNum,
+      forma_pagamento: formaPagamento,
+      operador: operadorCaixa || 'Não identificado', 
+      observacao: observacao,
+      data_transacao: dataLocal,
+      hora_transacao: horaLocal,
+      edicao: edicaoAtiva
+    };
+
+    // ====================================================
+    // DESVIO OFFLINE: Sem internet? Salva na memória local
+    // ====================================================
+    if (!navigator.onLine) {
+      if (arquivoAnexo) {
+        toast.error("O modo offline não suporta envio de fotos.");
+        setCarregando(false);
+        return;
+      }
+      if (idEmEdicao) {
+        toast.error("Você precisa estar online para editar registros antigos.");
+        setCarregando(false);
+        return;
+      }
+
+      const novaFila = [...filaOffline, payloadLancamento];
+      setFilaOffline(novaFila);
+      await localforage.setItem('fila_acampamento', novaFila);
+
+      setDescricao(''); setValorTotal(''); setValorPago(''); setObservacao(''); setNovaCategoria('');
+      setTelaAtual('LISTA');
+      setCarregando(false);
+      toast.success("Salvo offline! Clique em 'Sincronizar' quando a rede voltar.");
+      return;
+    }
+
+    // ====================================================
+    // FLUXO ONLINE NORMAL
+    // ====================================================
     try {
-      // --- 1. FAZ O UPLOAD DA FOTO PRIMEIRO (SE HOUVER) ---
       let urlAnexoGerada = null;
       if (arquivoAnexo) {
         setMensagemCarregando('Anexando comprovante...');
@@ -451,61 +554,29 @@ export default function App() {
 
       if (idEmEdicao) {
         const payloadEdicao = {
-          tipo: tipo,
-          descricao: descricao,
-          categoria: categoriaFinal,
-          valor_total: valorTotalNum,
-          valor_pago: valorPagoNum,
-          forma_pagamento: formaPagamento,
-          observacao: observacao,
+          ...payloadLancamento,
           foi_editado: true,
           updated_at: new Date().toISOString()
         };
+        // Na edição, preservamos a data e hora originais em que o registro nasceu
+        delete payloadEdicao.data_transacao;
+        delete payloadEdicao.hora_transacao;
 
-        // Se a pessoa subiu uma foto nova durante a edição, trocamos a URL
         if (urlAnexoGerada) payloadEdicao.anexo_url = urlAnexoGerada;
 
-        const { error } = await supabase
-          .from('transacoes')
-          .update(payloadEdicao)
-          .eq('id', idEmEdicao);
-
+        const { error } = await supabase.from('transacoes').update(payloadEdicao).eq('id', idEmEdicao);
         if (error) throw error;
         toast.success("Registro atualizado com sucesso!");
-        
+
       } else {
-        const agora = new Date();
-        const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
-        const horaLocal = agora.toTimeString().split(' ')[0];
+        if (urlAnexoGerada) payloadLancamento.anexo_url = urlAnexoGerada;
 
-        const { error } = await supabase
-          .from('transacoes')
-          .insert([{
-            tipo: tipo,
-            descricao: descricao,
-            categoria: categoriaFinal,
-            valor_total: valorTotalNum,
-            valor_pago: valorPagoNum,
-            forma_pagamento: formaPagamento,
-            operador: operadorCaixa, 
-            observacao: observacao,
-            data_transacao: dataLocal,
-            hora_transacao: horaLocal,
-            anexo_url: urlAnexoGerada // <-- LINK SALVO AQUI!
-          }]);
-
+        const { error } = await supabase.from('transacoes').insert([payloadLancamento]);
         if (error) throw error;
         toast.success("Lançamento salvo com sucesso!");
       }
 
-      // Limpa os dados da memória
-      setDescricao('');
-      setValorTotal('');
-      setValorPago('');
-      setObservacao('');
-      setNovaCategoria('');
-      setArquivoAnexo(null); // <-- Zera o arquivo anexado
-      setIdEmEdicao(null);
+      setDescricao(''); setValorTotal(''); setValorPago(''); setObservacao(''); setNovaCategoria(''); setArquivoAnexo(null); setIdEmEdicao(null);
       setTelaAtual('LISTA');
       carregarDados();
 
@@ -516,6 +587,7 @@ export default function App() {
       setCarregando(false);
     }
   };
+  
 
   const enviarNovoPagamento = async (e) => {
     e.preventDefault();
@@ -566,6 +638,49 @@ export default function App() {
     } catch (error) {
       console.error("Erro ao registrar pagamento:", error);
       toast.error('Erro ao salvar no Supabase.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+  // ==========================================
+  // FUNÇÕES DE EXCLUSÃO (SUPABASE)
+  // ==========================================
+
+  // 1. Função gatilho: Verifica a rede e abre o modal vermelho
+  const excluirRegistro = (id) => {
+    if (!id) { 
+      toast.error("Este registro não possui ID."); 
+      return; 
+    }
+    if (!navigator.onLine) { 
+      toast.error("Você precisa estar online para excluir."); 
+      return; 
+    }
+    setIdParaExcluir(id); 
+  };
+
+  // 2. Função real: Vai no banco e apaga o registro definitivamente
+  const confirmarExclusao = async () => {
+    if (!idParaExcluir) return;
+    
+    setMensagemCarregando('A excluir registo...');
+    setCarregando(true);
+    
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('id', idParaExcluir);
+
+      if (error) throw error;
+
+      toast.success("Registo excluído com sucesso!");
+      setIdParaExcluir(null); // Fecha o modal vermelho
+      carregarDados(); // Recarrega o histórico atualizado
+
+    } catch (error) {
+      console.error("Erro ao excluir:", error);
+      toast.error("Erro ao excluir no banco de dados.");
     } finally {
       setCarregando(false);
     }
@@ -827,29 +942,6 @@ export default function App() {
           setArquivoAnexo={setArquivoAnexo}
           />
         
-        )}
-        
-
-        {/* NOVO MODAL DE EXCLUSÃO CUSTOMIZADO */}
-        {idParaExcluir && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
-            <div className="bg-white" style={{ width: '90%', maxWidth: '350px', borderRadius: '24px', padding: '24px', animation: 'slideUp 0.2s ease-out', textAlign: 'center', backgroundColor: darkMode ? '#1e293b' : '#ffffff', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}` }}>
-              <div style={{ backgroundColor: '#fee2e2', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
-                <Trash2 size={28} color="#ef4444" />
-              </div>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', color: darkMode ? '#f8fafc' : '#0f172a' }}>Excluir Registro?</h3>
-              <p style={{ margin: '0 0 24px 0', fontSize: '15px', color: darkMode ? '#94a3b8' : '#64748b' }}>Esta ação não pode ser desfeita. O valor será removido do balanço geral.</p>
-              
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => setIdParaExcluir(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: darkMode ? '#334155' : '#f1f5f9', color: darkMode ? '#cbd5e1' : '#475569', fontWeight: '700', fontSize: '15px', cursor: 'pointer', transition: '0.2s' }}>
-                  Cancelar
-                </button>
-                <button onClick={confirmarExclusao} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#ef4444', color: '#ffffff', fontWeight: '700', fontSize: '15px', cursor: 'pointer', transition: '0.2s', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}>
-                  Sim, Excluir
-                </button>
-              </div>
-            </div>
-          </div>
         )}
 
         {/* NOVO MODAL DE EXCLUSÃO CUSTOMIZADO */}
