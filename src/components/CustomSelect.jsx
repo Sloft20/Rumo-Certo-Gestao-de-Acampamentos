@@ -20,30 +20,22 @@ export default function CustomSelect({ value, onChange, options, label, classNam
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%' }} className={className}>
-      {label && <label className="label-moderna">{label}</label>}
+    <div className={`relative w-full ${className}`}>
+      {label && (
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+          {label}
+        </label>
+      )}
       
       {/* Gatilho Visual do Dropdown */}
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className="input-moderno"
-        style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          cursor: 'pointer',
-          userSelect: 'none',
-          paddingRight: '16px'
-        }}
+        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all flex justify-between items-center cursor-pointer select-none"
       >
-        <span style={{ fontWeight: '500' }}>{textoExibido}</span>
+        <span className="font-medium truncate pr-2">{textoExibido}</span>
         <ChevronDown 
           size={18} 
-          style={{ 
-            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', 
-            transition: '0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            color: '#94a3b8'
-          }} 
+          className={`shrink-0 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
         />
       </div>
 
@@ -51,29 +43,14 @@ export default function CustomSelect({ value, onChange, options, label, classNam
       {isOpen && (
         <div 
           onClick={() => setIsOpen(false)} 
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 }}
+          className="fixed inset-0 z-[9998]"
         />
       )}
 
       {/* Lista de Opções Absoluta */}
       {isOpen && (
         <div 
-          className="dropdown-opcoes"
-          style={{ 
-            position: 'absolute', 
-            top: 'calc(100% + 6px)', 
-            left: 0, 
-            right: 0, 
-            backgroundColor: '#ffffff', 
-            borderRadius: '14px', 
-            boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.1)', 
-            border: '1px solid #e2e8f0', 
-            zIndex: 9999, 
-            maxHeight: '220px', 
-            overflowY: 'auto',
-            padding: '6px',
-            animation: 'slideUp 0.15s ease-out'
-          }}
+          className="absolute top-[calc(100%+6px)] left-0 right-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50 border border-slate-200 dark:border-slate-800 z-[9999] max-h-[220px] overflow-y-auto p-1.5 animate-in slide-in-from-top-2 fade-in duration-150"
         >
           {opcoesNormalizadas.map((opt, index) => {
             const isSelected = opt.value === value;
@@ -81,18 +58,11 @@ export default function CustomSelect({ value, onChange, options, label, classNam
               <div
                 key={index}
                 onClick={() => handleSelect(opt.value)}
-                className={`opcao-item ${isSelected ? 'selecionada' : ''}`}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: isSelected ? '700' : '600',
-                  backgroundColor: isSelected ? '#f0fdfa' : 'transparent',
-                  color: isSelected ? '#0d9488' : '#334155',
-                  transition: '0.15s ease',
-                  marginBottom: index === opcoesNormalizadas.length - 1 ? 0 : '2px'
-                }}
+                className={`px-3 py-2.5 rounded-lg cursor-pointer text-sm transition-colors mb-0.5 last:mb-0 ${
+                  isSelected 
+                    ? 'bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 font-bold' 
+                    : 'text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
               >
                 {opt.label}
               </div>

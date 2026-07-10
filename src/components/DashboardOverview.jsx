@@ -1,50 +1,74 @@
 import React from 'react';
-import { DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 import { formatarMoeda } from '../utils/formatters';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Wallet, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react';
 
-export default function DashboardOverview({ 
-  saldoCaixa, totalReceitas, totalDespesas, 
-  receitasPix, receitasDinheiro, modoPrivacidade 
-}) {
+export default function DashboardOverview({ carregando, saldoCaixa, totalReceitas, totalDespesas, receitasPix, receitasDinheiro, modoPrivacidade }) {
+
+  // Gerador de Skeletons Dinâmicos
+  const renderizarValor = (valor, classeSkeleton = "h-8 w-32") => {
+    if (carregando) {
+      return <div className={`animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700/50 ${classeSkeleton}`}></div>;
+    }
+    return modoPrivacidade ? 'R$ •••••' : formatarMoeda(valor);
+  };
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       
-      {/* SALDO - Ocupa a largura toda no celular (2 colunas), e 1 no PC */}
-      <div className="col-span-2 md:col-span-1 bg-slate-900 rounded-2xl p-4 md:p-6 text-white relative overflow-hidden flex flex-col justify-center shadow-sm">
-         <DollarSign className="absolute right-[-15px] bottom-[-15px] text-slate-800 opacity-40" size={100} />
-         <p className="text-slate-400 text-xs font-bold tracking-wider mb-0.5 z-10">SALDO EM CAIXA</p>
-         <h2 className="text-3xl font-black z-10">
-           {modoPrivacidade ? 'R$ •••••' : formatarMoeda(saldoCaixa)}
-         </h2>
-      </div>
+      {/* CARTÃO PRINCIPAL */}
+      <Card className="bg-slate-900 border-slate-800 text-white shadow-lg md:col-span-2">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+            <Wallet size={16} className="text-teal-400" />
+            Saldo em Caixa
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-4xl font-bold tracking-tight mb-4">
+            {renderizarValor(saldoCaixa, "h-10 w-48 bg-slate-700 dark:bg-slate-800")}
+          </div>
+          
+          <div className="flex items-center gap-4 text-sm text-slate-400">
+            <span className="flex items-center gap-1.5 font-medium bg-slate-800 px-2.5 py-1 rounded-md">
+              <ArrowRightLeft size={14} className="text-sky-400 shrink-0" /> 
+              Pix: {renderizarValor(receitasPix, "h-4 w-16 bg-slate-700 dark:bg-slate-800")}
+            </span>
+            <span className="flex items-center gap-1.5 font-medium bg-slate-800 px-2.5 py-1 rounded-md">
+              <Wallet size={14} className="text-emerald-400 shrink-0" /> 
+              Dinheiro: {renderizarValor(receitasDinheiro, "h-4 w-16 bg-slate-700 dark:bg-slate-800")}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* RECEITAS - Fica lado a lado com despesas no celular */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col justify-center shadow-sm">
-        <div className="flex items-center gap-1.5 mb-1">
-          <TrendingUp size={16} className="text-emerald-500" />
-          <span className="text-xs font-bold text-emerald-500">RECEITAS</span>
-        </div>
-        <h3 className="text-xl md:text-2xl font-bold text-slate-800">
-          {modoPrivacidade ? 'R$ •••••' : formatarMoeda(totalReceitas)}
-        </h3>
-        
-        {/* Ocultei os detalhes do PIX no celular (hidden), mas mostro no PC (md:flex) */}
-        <div className="hidden md:flex justify-between mt-2 text-[10px] text-slate-400 font-bold uppercase">
-          <span>PIX: {formatarMoeda(receitasPix)}</span>
-          <span>DIN: {formatarMoeda(receitasDinheiro)}</span>
-        </div>
-      </div>
+      {/* CARTÃO SECUNDÁRIO: RECEITAS */}
+      <Card className="bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+            <TrendingUp size={16} /> Total Recebido
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+            {renderizarValor(totalReceitas, "h-8 w-32")}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* DESPESAS - Fica lado a lado com receitas no celular */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col justify-center shadow-sm">
-        <div className="flex items-center gap-1.5 mb-1">
-          <TrendingDown size={16} className="text-rose-500" />
-          <span className="text-xs font-bold text-rose-500">DESPESAS</span>
-        </div>
-        <h3 className="text-xl md:text-2xl font-bold text-slate-800">
-          {modoPrivacidade ? 'R$ •••••' : formatarMoeda(totalDespesas)}
-        </h3>
-      </div>
+      {/* CARTÃO SECUNDÁRIO: DESPESAS */}
+      <Card className="bg-rose-50 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-rose-600 dark:text-rose-400 flex items-center gap-2">
+            <TrendingDown size={16} /> Despesas Operacionais
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-rose-700 dark:text-rose-300">
+            {renderizarValor(totalDespesas, "h-8 w-32")}
+          </div>
+        </CardContent>
+      </Card>
 
     </div>
   );

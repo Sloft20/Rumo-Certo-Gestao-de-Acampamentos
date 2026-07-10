@@ -14,7 +14,6 @@ export default function HistoricoList({
   prepararEdicao, excluirRegistro 
 }) {
 
-  // NOVO: Estado que controla qual transação está aberta no Modal
   const [transacaoSelecionada, setTransacaoSelecionada] = useState(null);
   const [anexoParaVisualizar, setAnexoParaVisualizar] = useState(null);
 
@@ -43,25 +42,25 @@ export default function HistoricoList({
   ];
 
   return (
-    <div className="pb-24">
+    <div className="pb-24 animate-in fade-in duration-300">
       
       {/* PAINEL DE FILTROS AVANÇADOS */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-6" style={{ zIndex: 10 }}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 mb-6 relative z-10 transition-colors">
         <div className="flex flex-col md:flex-row gap-4 items-end">
           <div className="flex-1 w-full">
-            <label className="label-moderna" style={{ marginBottom: '6px', display: 'block' }}>Buscar Registo</label>
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/20 transition-all" style={{ height: '48px' }}>
-              <Search size={20} className="text-slate-400" />
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Buscar Registo</label>
+            <div className="flex items-center h-12 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/20 transition-all">
+              <Search size={20} className="text-slate-400 shrink-0" />
               <input 
                 type="text" 
                 placeholder="Procurar acampante ou categoria..." 
                 value={termoBuscaHistorico} 
                 onChange={(e) => setTermoBuscaHistorico(e.target.value)} 
-                className="w-full bg-transparent border-none outline-none ml-3 text-slate-700 placeholder-slate-400"
+                className="w-full bg-transparent border-none outline-none ml-3 text-slate-700 dark:text-slate-100 placeholder-slate-400"
               />
             </div>
           </div>
-          <div className="w-full md:w-64" style={{ zIndex: 100 }}>
+          <div className="w-full md:w-64 z-50">
             <CustomSelect 
               label="Tipo de Transação"
               value={filtroTipoHistorico}
@@ -71,71 +70,76 @@ export default function HistoricoList({
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-4 mt-4 pt-4 border-t border-slate-100 items-start md:items-center">
-           <div className="flex items-center gap-2 text-sm text-slate-600 font-semibold w-full md:w-auto">
+        <div className="flex flex-col md:flex-row gap-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 items-start md:items-center">
+           <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 font-semibold w-full md:w-auto">
              <Calendar size={18} className="text-slate-400" />
              Período:
            </div>
            
            <div className="flex flex-1 gap-2 items-center w-full">
-             <input type="date" value={filtroDataInicio} onChange={(e) => setFiltroDataInicio(e.target.value)} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 outline-none focus:border-teal-500 transition-all" style={{ height: '42px' }} />
+             <input type="date" value={filtroDataInicio} onChange={(e) => setFiltroDataInicio(e.target.value)} className="flex-1 h-11 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-teal-500 transition-all" />
              <span className="text-slate-400 font-medium text-sm">até</span>
-             <input type="date" value={filtroDataFim} onChange={(e) => setFiltroDataFim(e.target.value)} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 outline-none focus:border-teal-500 transition-all" style={{ height: '42px' }} />
+             <input type="date" value={filtroDataFim} onChange={(e) => setFiltroDataFim(e.target.value)} className="flex-1 h-11 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 text-sm text-slate-700 dark:text-slate-200 outline-none focus:border-teal-500 transition-all" />
            </div>
 
            {temFiltroAtivo && (
-             <button onClick={limparFiltros} className="mt-2 md:mt-0 text-sm font-bold text-teal-600 hover:text-teal-700 transition-colors w-full md:w-auto text-right md:ml-4">Limpar Filtros</button>
+             <button onClick={limparFiltros} className="mt-2 md:mt-0 text-sm font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors w-full md:w-auto text-right md:ml-4">
+               Limpar Filtros
+             </button>
            )}
         </div>
       </div>
 
       {/* ESTADO VAZIO */}
       {historicoFiltrado.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
-          <div style={{ backgroundColor: '#f1f5f9', width: '64px', height: '64px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}><History size={32} color="#94a3b8" /></div>
-          <h3 style={{ margin: '0 0 8px 0', color: '#0f172a', fontSize: '18px' }}>Nenhum Lançamento Encontrado</h3>
-          <p style={{ margin: 0, fontSize: '15px' }}>Tente remover ou alterar os filtros aplicados acima.</p>
+        <div className="text-center py-16 text-slate-500 dark:text-slate-400">
+          <div className="bg-slate-100 dark:bg-slate-800/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <History size={32} className="text-slate-400 dark:text-slate-500" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Nenhum Lançamento Encontrado</h3>
+          <p className="text-sm">Tente remover ou alterar os filtros aplicados acima.</p>
         </div>
       )}   
 
-      {/* LISTA DE RESULTADOS - AGORA MINIMALISTA */}
-      {historicoFiltrado.map((item, index) => {
-        const isEntrada = obterColuna(item, 'Tipo') === 'ENTRADA';
-        if (!obterColuna(item, 'Descrição')) return null;
-        
-        return (
-          <div 
-            key={index} 
-            className="cartao" 
-            onClick={() => setTransacaoSelecionada(item)}
-            style={{ padding: '16px', display: 'flex', alignItems: 'center', marginBottom: '12px', cursor: 'pointer', transition: 'all 0.2s ease' }}
-          >
-            <div style={{ backgroundColor: isEntrada ? '#d1fae5' : '#fee2e2', padding: '12px', borderRadius: '14px', marginRight: '16px' }}>
-              {isEntrada ? <TrendingUp color="#10b981" size={20} /> : <TrendingDown color="#ef4444" size={20} />}
+      {/* LISTA DE RESULTADOS */}
+      <div className="flex flex-col gap-3">
+        {historicoFiltrado.map((item, index) => {
+          const isEntrada = obterColuna(item, 'Tipo') === 'ENTRADA';
+          if (!obterColuna(item, 'Descrição')) return null;
+          
+          return (
+            <div 
+              key={index} 
+              onClick={() => setTransacaoSelecionada(item)}
+              className="flex items-center p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl cursor-pointer hover:shadow-md transition-all group"
+            >
+              <div className={`p-3 rounded-xl mr-4 shrink-0 transition-colors ${isEntrada ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400'}`}>
+                {isEntrada ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <h4 className="text-slate-900 dark:text-slate-100 text-[15px] font-bold truncate mb-1">
+                  {obterColuna(item, 'Descrição')}
+                </h4>
+                <small className="flex items-center gap-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                  {formatarData(obterColuna(item, 'Data'))} • <span className="truncate">{obterColuna(item, 'Categoria')}</span>
+                  {item.foi_editado && (
+                    <span className="bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider shrink-0">
+                      EDITADO
+                    </span>
+                  )}
+                </small>
+              </div>
+              
+              <div className="text-right ml-3 shrink-0">
+                <b className={`text-base ${isEntrada ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                  {isEntrada ? '+' : '-'}{formatarMoeda(obterColuna(item, 'Valor Pago'))}
+                </b>
+              </div>
             </div>
-            
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h4 className="text-slate-900" style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {obterColuna(item, 'Descrição')}
-              </h4>
-              <small className="text-slate-500" style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {formatarData(obterColuna(item, 'Data'))} • {obterColuna(item, 'Categoria')}
-                {item.foi_editado && (
-                  <span style={{ backgroundColor: '#fef3c7', color: '#d97706', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', letterSpacing: '0.5px' }}>
-                    EDITADO
-                  </span>
-                )}
-              </small>
-            </div>
-            
-            <div style={{ textAlign: 'right', marginLeft: '12px' }}>
-              <b style={{ color: isEntrada ? '#10b981' : '#ef4444', fontSize: '16px' }}>
-                {isEntrada ? '+' : '-'}{formatarMoeda(obterColuna(item, 'Valor Pago'))}
-              </b>
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
 
       {/* MODAL DE DETALHES (TIPO BANCO) */}
       {transacaoSelecionada && (() => {
@@ -146,55 +150,55 @@ export default function HistoricoList({
         const urlAnexoModal = ts['anexo_url'];
 
         return (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', backdropFilter: 'blur(4px)' }}>
-            <div className="bg-white" style={{ width: '100%', maxWidth: '500px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', padding: '24px', animation: 'slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-end sm:items-center justify-center sm:p-4">
+            
+            <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300 shadow-2xl">
               
               {/* Cabeçalho do Modal */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h3 className="text-slate-900" style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>Detalhes do Registo</h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100">Detalhes do Registo</h3>
                 <button 
                   onClick={() => setTransacaoSelecionada(null)} 
-                  className="bg-slate-100 text-slate-500"
-                  style={{ border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
                 >
                   <X size={18} />
                 </button>
               </div>
 
               {/* Valor em Destaque */}
-              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                <div className="text-slate-500" style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.5px' }}>
+              <div className="text-center mb-8">
+                <div className="text-[13px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                   {obterColuna(ts, 'Categoria')}
                 </div>
-                <div style={{ fontSize: '36px', fontWeight: '800', color: isEntradaModal ? '#10b981' : '#ef4444', letterSpacing: '-1px' }}>
+                <div className={`text-4xl font-extrabold tracking-tight ${isEntradaModal ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
                   {isEntradaModal ? '+' : '-'} {formatarMoeda(obterColuna(ts, 'Valor Pago'))}
                 </div>
-                <div className="text-slate-400" style={{ fontSize: '14px', fontWeight: '600', marginTop: '4px' }}>
+                <div className="text-sm font-semibold text-slate-400 dark:text-slate-500 mt-1">
                   Via {obterColuna(ts, 'Forma de Pagamento')}
                 </div>
               </div>
 
               {/* Grelha de Informações */}
-              <div className="bg-slate-50 border border-slate-200" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px', padding: '16px', borderRadius: '16px' }}>
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl mb-6">
                 <div>
-                  <span className="text-slate-400" style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>Acampante / Ref.</span>
-                  <span className="text-slate-700" style={{ fontSize: '15px', fontWeight: '700' }}>{obterColuna(ts, 'Descrição')}</span>
+                  <span className="block text-xs font-semibold text-slate-400 dark:text-slate-500 mb-1">Acampante / Ref.</span>
+                  <span className="text-[15px] font-bold text-slate-700 dark:text-slate-200">{obterColuna(ts, 'Descrição')}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400" style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>Data</span>
-                  <span className="text-slate-700" style={{ fontSize: '15px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="block text-xs font-semibold text-slate-400 dark:text-slate-500 mb-1">Data</span>
+                  <span className="flex items-center gap-1.5 text-[15px] font-bold text-slate-700 dark:text-slate-200">
                     <Calendar size={14} className="text-slate-400" /> {formatarData(obterColuna(ts, 'Data'))}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400" style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>Hora exata</span>
-                  <span className="text-slate-700" style={{ fontSize: '15px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="block text-xs font-semibold text-slate-400 dark:text-slate-500 mb-1">Hora exata</span>
+                  <span className="flex items-center gap-1.5 text-[15px] font-bold text-slate-700 dark:text-slate-200">
                     <Clock size={14} className="text-slate-400" /> {exibirHora(obterColuna(ts, 'Hora')) || '--:--'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400" style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>Operador de Caixa</span>
-                  <span className="text-slate-700" style={{ fontSize: '15px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="block text-xs font-semibold text-slate-400 dark:text-slate-500 mb-1">Operador de Caixa</span>
+                  <span className="flex items-center gap-1.5 text-[15px] font-bold text-slate-700 dark:text-slate-200">
                     <User size={14} className="text-slate-400" /> {obterColuna(ts, 'Operador') || 'N/A'}
                   </span>
                 </div>
@@ -202,49 +206,34 @@ export default function HistoricoList({
 
               {/* Observação (Se Existir) */}
               {observacaoModal && (
-                <div className="bg-slate-50 border border-slate-200" style={{ marginBottom: '24px', padding: '16px', borderRadius: '16px', borderLeft: '4px solid #0d9488' }}>
-                  <span className="text-slate-500" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700', marginBottom: '8px', textTransform: 'uppercase' }}>
+                <div className="bg-teal-50 dark:bg-teal-500/10 border-l-4 border-teal-500 p-4 rounded-xl mb-6">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">
                     <MessageSquare size={14} /> Observação
                   </span>
-                  <span className="text-slate-700" style={{ fontSize: '14px', fontStyle: 'italic', lineHeight: '1.5' }}>
+                  <span className="text-sm italic text-teal-900 dark:text-teal-200 leading-relaxed">
                     "{observacaoModal}"
                   </span>
                 </div>
               )}
-              {/* BOTÃO DE ANEXO (AGORA ABRE NA MESMA TELA) */}
+
+              {/* BOTÃO DE ANEXO */}
               {urlAnexoModal && (
                 <button 
                   type="button"
                   onClick={() => setAnexoParaVisualizar(urlAnexoModal)} 
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    gap: '8px', 
-                    width: '100%', 
-                    padding: '12px', 
-                    marginBottom: '16px', 
-                    borderRadius: '14px', 
-                    backgroundColor: document.body.classList.contains('dark') ? '#1e293b' : '#f1f5f9', 
-                    color: document.body.classList.contains('dark') ? '#38bdf8' : '#0284c7', 
-                    fontWeight: '700', 
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    border: `1px solid ${document.body.classList.contains('dark') ? '#0369a1' : '#bae6fd'}`,
-                    transition: '0.2s'
-                  }}
+                  className="w-full flex items-center justify-center gap-2 p-3 mb-6 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20 rounded-xl font-bold text-sm hover:bg-sky-100 dark:hover:bg-sky-500/20 transition-colors"
                 >
                   <Paperclip size={18} />
-                  <span>Ver Comprovante Anexado</span>
+                  <span>Ver Comprovativo Anexado</span>
                 </button>
               )}
 
               {/* Botões de Ação */}
-              <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+              <div className="flex gap-3 mt-8">
                 {temIdModal && (
                   <button 
                     onClick={() => { excluirRegistro(temIdModal); setTransacaoSelecionada(null); }} 
-                    style={{ flex: 1, background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '14px', padding: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12px', transition: '0.2s' }}
+                    className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 p-3 rounded-xl font-bold text-xs transition-colors"
                   >
                     <Trash2 size={20} /> Excluir
                   </button>
@@ -252,7 +241,7 @@ export default function HistoricoList({
                 {temIdModal && (
                   <button 
                     onClick={() => { prepararEdicao(ts); setTransacaoSelecionada(null); }} 
-                    style={{ flex: 1, background: '#fef3c7', color: '#d97706', border: 'none', borderRadius: '14px', padding: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12px', transition: '0.2s' }}
+                    className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 p-3 rounded-xl font-bold text-xs transition-colors"
                   >
                     <Edit2 size={20} /> Editar
                   </button>
@@ -263,7 +252,7 @@ export default function HistoricoList({
                       gerarRecibo({ nome: obterColuna(ts, 'Descrição'), valor: obterColuna(ts, 'Valor Pago'), categoria: obterColuna(ts, 'Categoria'), formaPagamento: obterColuna(ts, 'Forma de Pagamento'), data: obterColuna(ts, 'Data') }); 
                       toast.success('Recibo descarregado!'); 
                     }} 
-                    style={{ flex: 1, background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '14px', padding: '14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12px', transition: '0.2s' }}
+                    className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 p-3 rounded-xl font-bold text-xs transition-colors"
                   >
                     <FileText size={20} /> Recibo
                   </button>
@@ -274,33 +263,31 @@ export default function HistoricoList({
           </div>
         );
       })()}
-      {/* MODAL SUPREMO DE VISUALIZAÇÃO DE ANEXO (Z-INDEX 10000) */}
+
+      {/* MODAL SUPREMO DE VISUALIZAÇÃO DE ANEXO */}
       {anexoParaVisualizar && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(6px)' }}>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[10000] flex flex-col items-center justify-center p-4 animate-in fade-in duration-200">
           
-          {/* Barra superior com botão de fechar */}
-          <div style={{ width: '100%', maxWidth: '750px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <span style={{ color: '#f8fafc', fontWeight: '700', fontSize: '14px' }}>Visualizador de Documento</span>
+          <div className="w-full max-w-3xl flex justify-between items-center mb-4">
+            <span className="text-white font-bold text-sm">Visualizador de Documento</span>
             <button 
               onClick={() => setAnexoParaVisualizar(null)}
-              style={{ background: '#334155', color: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              className="bg-slate-800 hover:bg-slate-700 text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
             >
               <X size={20} />
             </button>
           </div>
 
-          {/* Janela Inteligente (Detecta se é PDF ou Foto) */}
-          <div style={{ width: '100%', maxWidth: '750px', height: '75vh', backgroundColor: '#0f172a', borderRadius: '16px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #334155' }}>
+          <div className="w-full max-w-3xl h-[75vh] bg-slate-900 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-700 shadow-2xl">
             {anexoParaVisualizar.toLowerCase().includes('.pdf') ? (
-              <iframe src={anexoParaVisualizar} style={{ width: '100%', height: '100%', border: 'none' }} title="Comprovante PDF" />
+              <iframe src={anexoParaVisualizar} className="w-full h-full border-none" title="Comprovativo PDF" />
             ) : (
-              <img src={anexoParaVisualizar} alt="Comprovante" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              <img src={anexoParaVisualizar} alt="Comprovativo" className="max-w-full max-h-full object-contain" />
             )}
           </div>
 
-          {/* Plano B de segurança para navegadores mobile chatos */}
-          <a href={anexoParaVisualizar} target="_blank" rel="noopener noreferrer" style={{ marginTop: '14px', color: '#38bdf8', fontSize: '12px', fontWeight: '600', textDecoration: 'underline' }}>
-            O arquivo não abriu aqui dentro? Clique para abrir em nova aba ↗
+          <a href={anexoParaVisualizar} target="_blank" rel="noopener noreferrer" className="mt-4 text-sky-400 text-sm font-semibold hover:underline">
+            O ficheiro não abriu aqui dentro? Clique para abrir em nova aba ↗
           </a>
 
         </div>

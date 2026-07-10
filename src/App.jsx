@@ -745,11 +745,12 @@ const carregarDados = async (silencioso = false) => {
         
       </style>
 
-      {carregando && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ backgroundColor: darkMode ? '#1e293b' : '#ffffff', padding: '32px', borderRadius: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', animation: 'slideUp 0.2s ease-out', border: darkMode ? '1px solid #334155' : 'none' }}>
-            <RefreshCw size={36} color="#0d9488" className="animate-spin" />
-            <p style={{ margin: 0, color: darkMode ? '#f8fafc' : '#334155', fontWeight: '700', fontSize: '16px' }}>{mensagemCarregando || 'A processar...'}</p>
+      {/* TELA DE CARREGAMENTO GLOBAL (Bloqueia apenas em ações críticas como Salvar/Excluir) */}
+      {carregando && mensagemCarregando !== 'Atualizando dados...' && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex flex-col justify-center items-center">
+          <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl flex flex-col items-center gap-4 shadow-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95 duration-200">
+            <RefreshCw size={36} className="text-teal-500 animate-spin" />
+            <p className="text-slate-700 dark:text-slate-200 font-bold text-lg">{mensagemCarregando || 'A processar...'}</p>
           </div>
         </div>
       )}
@@ -835,8 +836,14 @@ const carregarDados = async (silencioso = false) => {
 
         {telaAtual === 'LISTA' && (
           <div style={{ paddingBottom: '90px' }}>
-            <DashboardOverview saldoCaixa={saldoCaixa} totalReceitas={totalReceitas} totalDespesas={totalDespesas} receitasPix={receitasPix} receitasDinheiro={receitasDinheiro} modoPrivacidade={modoPrivacidade} />
-            <AcampanteList termoBusca={termoBusca} setTermoBusca={setTermoBusca} acampantesFiltrados={acampantesFiltrados} setAcampanteSelecionado={setAcampanteSelecionado} mostrarApenasDevedores={mostrarApenasDevedores} setMostrarApenasDevedores={setMostrarApenasDevedores} modoLote={modoLote} setModoLote={setModoLote} selecionadosLote={selecionadosLote} setSelecionadosLote={setSelecionadosLote} setModalLoteAberto={setModalLoteAberto} filtroCategoria={filtroCategoria} setFiltroCategoria={setFiltroCategoria} />
+            <DashboardOverview 
+              carregando={carregando && mensagemCarregando === 'Atualizando dados...'} 
+              saldoCaixa={saldoCaixa} totalReceitas={totalReceitas} totalDespesas={totalDespesas} receitasPix={receitasPix} receitasDinheiro={receitasDinheiro} modoPrivacidade={modoPrivacidade} 
+            />
+            <AcampanteList 
+              carregando={carregando && mensagemCarregando === 'Atualizando dados...'} 
+              termoBusca={termoBusca} setTermoBusca={setTermoBusca} acampantesFiltrados={acampantesFiltrados} setAcampanteSelecionado={setAcampanteSelecionado} mostrarApenasDevedores={mostrarApenasDevedores} setMostrarApenasDevedores={setMostrarApenasDevedores} modoLote={modoLote} setModoLote={setModoLote} selecionadosLote={selecionadosLote} setSelecionadosLote={setSelecionadosLote} setModalLoteAberto={setModalLoteAberto} filtroCategoria={filtroCategoria} setFiltroCategoria={setFiltroCategoria} 
+            />
             <PaymentModal 
               acampanteSelecionado={acampanteSelecionado} 
               setAcampanteSelecionado={setAcampanteSelecionado} 
