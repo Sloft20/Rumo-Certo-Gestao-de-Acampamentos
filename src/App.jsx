@@ -764,7 +764,7 @@ const carregarDados = async (silencioso = false) => {
 
         
          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', width: '100%', marginBottom: '40px' }}>
             
             {/* 1. CAIXA DO OPERADOR */}
             <div style={{ position: 'relative', flexShrink: 0 }}>

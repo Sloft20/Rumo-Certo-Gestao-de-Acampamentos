@@ -101,26 +101,55 @@ export default function PainelMetas({
             </div>
           </div>
 
+          {/* CARTÃO: TOP 3 DESPESAS COM GRÁFICO DONUT (CSS PURO) */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 transition-colors">
-            <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-4 flex items-center gap-2"><TrendingDown size={16} className="text-rose-400" /> MAIORES DESPESAS</h3>
+            <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-6 flex items-center gap-2">
+              <TrendingDown size={16} className="text-rose-400" /> COMPOSIÇÃO DE GASTOS
+            </h3>
+            
             {topDespesas.length === 0 ? (
               <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-4 font-medium">Nenhuma despesa registada.</p>
             ) : (
-              <div className="flex flex-col gap-4">
-                {topDespesas.map(([categoria, valor], index) => {
-                  const percentual = Math.min((valor / totalDespesas) * 100, 100);
-                  return (
-                    <div key={categoria}>
-                      <div className="flex justify-between items-end mb-1.5">
-                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2"><span className="text-xs font-black text-slate-300 dark:text-slate-600">#{index + 1}</span> {categoria}</span>
-                        <span className="text-sm font-bold text-rose-500 dark:text-rose-400">{formatarMoeda(valor)}</span>
+              <div className="flex flex-col sm:flex-row items-center gap-8">
+                
+                {/* O Gráfico Mágico (Conic Gradient) */}
+                <div className="relative w-32 h-32 shrink-0">
+                  <div 
+                    className="absolute inset-0 rounded-full animate-in zoom-in-95 duration-500 shadow-inner"
+                    style={{
+                      background: `conic-gradient(
+                        #f43f5e 0% ${(topDespesas[0]?.[1] / totalDespesas) * 100}%, 
+                        #f59e0b ${(topDespesas[0]?.[1] / totalDespesas) * 100}% ${((topDespesas[0]?.[1] || 0) + (topDespesas[1]?.[1] || 0)) / totalDespesas * 100}%, 
+                        #3b82f6 ${((topDespesas[0]?.[1] || 0) + (topDespesas[1]?.[1] || 0)) / totalDespesas * 100}% 100%
+                      )`
+                    }}
+                  />
+                  {/* O 'Buraco' do Donut que o torna transparente */}
+                  <div className="absolute inset-[15%] bg-white dark:bg-slate-900 rounded-full flex flex-col items-center justify-center transition-colors">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Top 3</span>
+                  </div>
+                </div>
+
+                {/* A Legenda do Gráfico */}
+                <div className="flex flex-col gap-4 w-full">
+                  {topDespesas.map(([categoria, valor], index) => {
+                    const coresMarcador = ['bg-rose-500', 'bg-amber-500', 'bg-blue-500'];
+                    const percentual = ((valor / totalDespesas) * 100).toFixed(0);
+                    return (
+                      <div key={categoria} className="flex justify-between items-center group">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <div className={`w-3 h-3 rounded-full shrink-0 ${coresMarcador[index]}`}></div>
+                          <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{categoria}</span>
+                        </div>
+                        <div className="flex flex-col items-end shrink-0 pl-2">
+                          <span className="text-sm font-black text-slate-900 dark:text-slate-100">{formatarMoeda(valor)}</span>
+                          <span className="text-[11px] font-bold text-slate-400">{percentual}%</span>
+                        </div>
                       </div>
-                      <div className="w-full h-2 bg-slate-50 dark:bg-slate-800 rounded-full overflow-hidden transition-colors">
-                        <div className="h-full bg-rose-400 dark:bg-rose-500 rounded-full" style={{ width: `${percentual}%` }}></div>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
               </div>
             )}
           </div>

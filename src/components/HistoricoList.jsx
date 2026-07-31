@@ -118,17 +118,22 @@ export default function HistoricoList({
               </div>
               
               <div className="flex-1 min-w-0">
-                <h4 className="text-slate-900 dark:text-slate-100 text-[15px] font-bold truncate mb-1">
+                <h4 className="text-slate-900 dark:text-slate-100 text-[15px] font-bold truncate mb-0.5">
                   {obterColuna(item, 'Descrição')}
                 </h4>
-                <small className="flex items-center gap-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                  {formatarData(obterColuna(item, 'Data'))} • <span className="truncate">{obterColuna(item, 'Categoria')}</span>
+                
+                {/* LINHA DE META-DADOS CORRIGIDA PARA MOBILE */}
+                <div className="flex items-center gap-1.5 text-[12px] sm:text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                  <span className="shrink-0">{formatarData(obterColuna(item, 'Data'))}</span>
+                  <span className="shrink-0 text-slate-300 dark:text-slate-600">•</span>
+                  <span className="truncate">{obterColuna(item, 'Categoria')}</span>
+                  
                   {item.foi_editado && (
                     <span className="bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider shrink-0">
                       EDITADO
                     </span>
                   )}
-                </small>
+                </div>
               </div>
               
               <div className="text-right ml-3 shrink-0">

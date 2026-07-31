@@ -1,7 +1,7 @@
-// src/components/PaymentModal.jsx
 import React from 'react';
 import { formatarMoeda } from '../utils/formatters';
 import { Paperclip, X } from 'lucide-react';
+import CurrencyInput from './CurrencyInput'; // <-- Importação do novo componente
 
 export default function PaymentModal({
   acampanteSelecionado,
@@ -17,7 +17,7 @@ export default function PaymentModal({
   if (!acampanteSelecionado) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
       
       <form onSubmit={enviarNovoPagamento} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
         
@@ -31,21 +31,15 @@ export default function PaymentModal({
           </p>
 
           <div className="space-y-4">
-            {/* CAMPO: VALOR RECEBIDO */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                Valor Recebido (R$)
-              </label>
-              <input 
-                type="number" 
-                step="0.01"
-                value={novoPagamento} 
-                onChange={e => setNovoPagamento(e.target.value)} 
-                placeholder="0.00" 
-                required 
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder-slate-400" 
-              />
-            </div>
+            
+            {/* O NOVO CAMPO DE DINHEIRO COM MÁSCARA */}
+            <CurrencyInput 
+              label="Valor Recebido"
+              value={novoPagamento}
+              onChange={e => setNovoPagamento(e.target.value)}
+              placeholder="Ex: R$ 50,00"
+              required={true}
+            />
             
             {/* CAMPO: MÉTODO DE PAGAMENTO */}
             <div>

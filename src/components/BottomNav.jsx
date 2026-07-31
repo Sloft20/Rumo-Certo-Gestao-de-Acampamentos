@@ -88,11 +88,11 @@ export default function BottomNav({ telaAtual, setTelaAtual }) {
                   <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="transition-all duration-300" />
                 </div>
                 
-                {/* TEXTO DO BOTÃO */}
+                {/* TEXTO DO BOTÃO (Correção aplicada aqui) */}
                 <span className={`
                   text-[10px] md:text-[15px] whitespace-nowrap transition-all duration-300
-                  ${isActive ? 'font-extrabold opacity-100 -translate-y-0.5 md:translate-y-0' : 'font-semibold opacity-70 md:opacity-0 md:hidden'}
-                  ${isExpanded ? 'md:!block md:!opacity-100' : ''}
+                  ${isActive ? 'font-extrabold opacity-100 -translate-y-0.5 md:translate-y-0' : 'font-semibold opacity-70'}
+                  ${isExpanded ? 'md:block' : 'md:hidden'}
                 `}>
                   {item.label}
                 </span>
