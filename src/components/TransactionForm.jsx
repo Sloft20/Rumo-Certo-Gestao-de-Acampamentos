@@ -70,9 +70,9 @@ export default function TransactionForm({
           />
         )}
 
-        {isInscricao && valorTotal && valorPago && saldoDevedor > 0 && (
+        {isInscricao && valorTotal && valorPago && parseFloat(saldoDevedor) > 0 && !isNaN(parseFloat(saldoDevedor)) && (
            <div className="bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 p-4 rounded-xl flex items-center gap-3 text-sm font-bold animate-in fade-in duration-300 border border-amber-200 dark:border-amber-500/20">
-             <AlertCircle size={20} className="shrink-0" /> Restará uma dívida de R$ {saldoDevedor.toFixed(2).replace('.', ',')}
+             <AlertCircle size={20} className="shrink-0" /> Restará uma dívida de R$ {parseFloat(saldoDevedor).toFixed(2).replace('.', ',')}
            </div>
         )}
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Users, CheckSquare, Square, CheckCircle2, AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { Search, Users, CheckSquare, Square, CheckCircle2, AlertCircle, Clock, CheckCircle, SearchX, RefreshCw } from 'lucide-react';
 import { formatarMoeda } from '../utils/formatters';
 
 export default function AcampanteList({ 
@@ -81,34 +81,43 @@ export default function AcampanteList({
         </div>
       </div>
 
-      {/* MENSAGEM DE VAZIO (Ocultada durante o carregamento) */}
-      {!carregando && acampantesFiltrados.length === 0 && (
-        <div className="text-center py-16 text-slate-500 dark:text-slate-400 animate-in fade-in duration-300">
-          <div className="bg-slate-100 dark:bg-slate-800/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Search size={32} className="text-slate-400 dark:text-slate-500" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Nenhum resultado</h3>
-          <p className="text-sm">Não encontramos nenhum acampante com esse filtro.</p>
-        </div>
-      )}
-
-      {/* LISTA DE ACAMPANTES OU SKELETON LOADERS */}
       <div className="flex flex-col gap-3">
+        {/* === LÓGICA DE APRESENTAÇÃO: SKELETON -> EMPTY STATE -> LISTA === */}
         {carregando ? (
-          /* SKELETONS A PISCAR */
+          /* SKELETONS A PISCAR (Visual Premium) */
           [...Array(5)].map((_, i) => (
-            <div key={`skel-${i}`} className="flex justify-between items-center p-4 rounded-xl border-y border-r border-l-[6px] border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 animate-pulse">
+            <div key={`skel-${i}`} className="animate-pulse flex justify-between items-center p-4 rounded-xl border-y border-r border-l-[6px] border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
               <div className="flex items-center gap-4 w-full">
-                <div className="w-6 h-6 rounded bg-slate-200 dark:bg-slate-800 shrink-0"></div>
-                <div className="flex-1 space-y-2.5">
+                <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0"></div>
+                <div className="flex-1 space-y-3">
                   <div className="h-4 bg-slate-200 dark:bg-slate-700/50 rounded w-2/3"></div>
-                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-1/3"></div>
+                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-1/3"></div>
                 </div>
               </div>
-              <div className="w-16 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg shrink-0 ml-4"></div>
+              <div className="w-20 h-8 bg-slate-100 dark:bg-slate-800 rounded-lg shrink-0 ml-4"></div>
             </div>
           ))
+        ) : acampantesFiltrados.length === 0 ? (
+          
+          /* EMPTY STATE ILUSTRADO E AMIGÁVEL */
+          <div className="flex flex-col items-center justify-center py-12 px-4 text-center animate-in fade-in duration-300 w-full">
+            <div className="bg-slate-100 dark:bg-slate-800/50 p-6 rounded-full mb-4">
+              <SearchX size={40} className="text-slate-400 dark:text-slate-500" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Ops! Ninguém por aqui.</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-[280px] mx-auto">
+              Não encontrámos acampantes com estes filtros. Tente procurar de outra forma.
+            </p>
+            <button 
+              onClick={() => { setTermoBusca(''); setFiltroCategoria('TODOS'); setMostrarApenasDevedores(false); }} 
+              className="bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-500/30 px-6 py-2.5 rounded-xl font-bold transition-all hover:bg-teal-100 dark:hover:bg-teal-500/20 flex items-center gap-2 mx-auto"
+            >
+              <RefreshCw size={18} /> Limpar Busca
+            </button>
+          </div>
+
         ) : (
+          
           /* LISTA REAL COM DADOS */
           acampantesFiltrados.map((a, i) => {
             const isSelecionado = selecionadosLote.find(sel => sel.Descrição === a.Descrição);

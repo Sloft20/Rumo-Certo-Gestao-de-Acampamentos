@@ -14,14 +14,17 @@ import BottomNav from './components/BottomNav';
 import { gerarBalancetePDF } from './utils/pdfGenerator';
 import PainelMetas from './components/PainelMetas';
 
-
 export default function App() {
   const [telaAtual, setTelaAtual] = useState('LISTA'); 
   const [carregando, setCarregando] = useState(false);
   const [mensagemCarregando, setMensagemCarregando] = useState('');
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [filaOffline, setFilaOffline] = useState([]);
-  const [edicaoAtiva, setEdicaoAtiva] = useState('2027');
+  const [edicaoAtiva, setEdicaoAtiva] = useState(() => localStorage.getItem('edicao_ativa') || '2027');
+  const [listaEdicoes, setListaEdicoes] = useState(() => {
+    const salvos = localStorage.getItem('lista_edicoes');
+    return salvos ? JSON.parse(salvos) : ['2026', '2027', '2028'];
+  });
   const [operadorCaixa, setOperadorCaixa] = useState(localStorage.getItem('operador_caixa') || '');
   const [dropdownOperadorAberto, setDropdownOperadorAberto] = useState(false);
   const [filtroCategoria, setFiltroCategoria] = useState('TODOS');
@@ -29,9 +32,8 @@ export default function App() {
   const [arquivoAnexo, setArquivoAnexo] = useState(null);
   const [idParaExcluir, setIdParaExcluir] = useState(null);
 
-  const [listaEdicoes, setListaEdicoes] = useState(['2027']);
+  
 
-  // --- NOVO: ESTADO DO MODO ESCURO ---
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('tema_rumo_certo') === 'escuro';
   });
@@ -84,7 +86,6 @@ export default function App() {
   const [modoPrivacidade, setModoPrivacidade] = useState(false);
   const [mostrarApenasDevedores, setMostrarApenasDevedores] = useState(false);
 
-  // --- NOVO: EFEITO PARA APLICAR MODO ESCURO NA TELA INTEIRA ---
   useEffect(() => {
     if (darkMode) {
       document.body.classList.add('dark');
@@ -94,23 +95,19 @@ export default function App() {
       localStorage.setItem('tema_rumo_certo', 'claro');
     }
   }, [darkMode]);
-  // ==========================================
-  // TELAS VIVAS (SUPABASE REALTIME)
-  // ==========================================
+
   useEffect(() => {
-    // Inscreve a aplicação para ouvir qualquer alteração na tabela de transações
     const radarSupabase = supabase.channel('mudancas-banco')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transacoes' },
         (payload) => {
           console.log('🔄 Sincronizando tela viva em segundo plano!', payload);
-          carregarDados(true); // O true faz o carregamento acontecer sem travar a tela com loader
+          carregarDados(true); 
         }
       )
       .subscribe();
 
-    // Limpa o radar se a pessoa fechar a aplicação
     return () => {
       supabase.removeChannel(radarSupabase);
     };
@@ -173,7 +170,7 @@ export default function App() {
     setTelaAtual('LISTA');
   };
 
-const carregarDados = async (silencioso = false) => {
+  const carregarDados = async (silencioso = false) => {
     if (!silencioso) {
       console.log("🔎 Iniciando busca manual no Supabase...");
       setMensagemCarregando('Atualizando dados...'); 
@@ -220,8 +217,28 @@ const carregarDados = async (silencioso = false) => {
   };
 
   const dadosDaEdicao = useMemo(() => {
-    return dadosPlanilha.filter(d => String(obterColuna(d, 'Edição')) === String(edicaoAtiva));
-  }, [dadosPlanilha, edicaoAtiva]);
+    const filaFormatada = filaOffline.map((item, index) => ({
+      'ID': `offline-${index}`,
+      'Edição': item.edicao || '2027',
+      'Tipo': item.tipo,
+      'Descrição': item.descricao,
+      'Categoria': item.categoria,
+      'Valor Total': item.valor_total,
+      'Valor Pago': item.valor_pago,
+      'Forma de Pagamento': item.forma_pagamento,
+      'Operador': item.operador,
+      'Observação': item.observacao,
+      'Data': item.data_transacao,
+      'Hora': item.hora_transacao,
+      'foi_editado': false,
+      'anexo_url': null,
+      'is_offline': true 
+    }));
+
+    const todosOsDados = [...dadosPlanilha, ...filaFormatada];
+
+    return todosOsDados.filter(d => String(obterColuna(d, 'Edição')) === String(edicaoAtiva));
+  }, [dadosPlanilha, filaOffline, edicaoAtiva]);
 
   const { totalReceitas, totalDespesas, saldoCaixa, receitasPix, receitasDinheiro } = useMemo(() => {
     let pix = 0; let dinheiro = 0;
@@ -234,18 +251,17 @@ const carregarDados = async (silencioso = false) => {
         return acc + valor;
     }, 0);
 
-    // Despesas operacionais puras (Removemos retiradas de lucro para não inflar as métricas de gastos na tela)
     const despesas = dadosDaEdicao
       .filter(d => obterColuna(d, 'Tipo') === 'SAIDA' && !['Retirada', 'Lucro'].includes(obterColuna(d, 'Categoria')))
       .reduce((acc, curr) => acc + extrairNumero(obterColuna(curr, 'Valor Pago')), 0);
 
-    // Todas as saídas (usado exclusivamente para o cálculo real do dinheiro que tem que estar no caixa físico)
     const todasSaidas = dadosDaEdicao
       .filter(d => obterColuna(d, 'Tipo') === 'SAIDA')
       .reduce((acc, curr) => acc + extrairNumero(obterColuna(curr, 'Valor Pago')), 0);
 
     return { totalReceitas: receitas, totalDespesas: despesas, saldoCaixa: receitas - todasSaidas, receitasPix: pix, receitasDinheiro: dinheiro };
   }, [dadosDaEdicao]);
+
   const agrupamento = useMemo(() => {
     return dadosDaEdicao.filter(d => obterColuna(d, 'Tipo') === 'ENTRADA' && obterColuna(d, 'Descrição')).reduce((acc, curr) => {
         const nome = obterColuna(curr, 'Descrição').trim();
@@ -326,8 +342,6 @@ const carregarDados = async (silencioso = false) => {
       }
       return matchTexto && matchTipo && matchData;
     }).sort((a, b) => {
-      // A MARRETA DA ORDENAÇÃO: Garante os mais novos sempre no topo
-      // Limpamos qualquer 'T' para garantir a junção perfeita de Data + Hora
       const dataA = String(obterColuna(a, 'Data') || '').split('T')[0];
       const horaA = obterColuna(a, 'Hora') || '00:00:00';
       
@@ -337,7 +351,6 @@ const carregarDados = async (silencioso = false) => {
       const carimboA = new Date(`${dataA}T${horaA}`).getTime();
       const carimboB = new Date(`${dataB}T${horaB}`).getTime();
 
-      // Se der NaN (dado inválido), empurra para o final. Senão, ordena do maior pro menor.
       if (isNaN(carimboA)) return 1;
       if (isNaN(carimboB)) return -1;
       
@@ -351,19 +364,14 @@ const carregarDados = async (silencioso = false) => {
   };
 
   const prepararEdicao = (item) => {
-    // 1. Pega a data crua da planilha
     let dataCorrigida = obterColuna(item, 'Data');
-    
-    // 2. Se a data vier com o 'T' (ex: 2026-05-20T03:00...), nós a formatamos para DD/MM/YYYY
     if (dataCorrigida && String(dataCorrigida).includes('T')) {
       const [ano, mes, dia] = String(dataCorrigida).split('T')[0].split('-');
       dataCorrigida = `${dia}/${mes}/${ano}`;
     }
 
-    // 3. Alimenta o estado com a data limpinha
     setIdEmEdicao(obterColuna(item, 'ID')); 
     setDataEmEdicao(dataCorrigida); 
-    
     setTipo(obterColuna(item, 'Tipo')); 
     setDescricao(obterColuna(item, 'Descrição'));
     setCategoriaSelecionada(obterColuna(item, 'Categoria')); 
@@ -383,8 +391,6 @@ const carregarDados = async (silencioso = false) => {
     setTelaAtual('NOVO');
   };
   
-  
-
   const sincronizarFila = async () => {
     if (isOffline || filaOffline.length === 0) return;
     setMensagemCarregando('A sincronizar dados offline...'); 
@@ -409,16 +415,13 @@ const carregarDados = async (silencioso = false) => {
   const enviarPagamentoLote = async (e) => {
     e.preventDefault();
     if (!valorLote || isNaN(valorLote) || Number(valorLote) <= 0) { 
-      toast.error('Insere um valor válido'); 
+      toast.error('Insira um valor válido'); 
       return; 
     }
 
     const totalDevedor = selecionadosLote.reduce((acc, curr) => acc + curr['Saldo Devedor'], 0);
     const valorRecebido = parseFloat(valorLote);
     
-    setMensagemCarregando('A processar pagamento em lote...'); 
-    setCarregando(true);
-
     const agora = new Date();
     const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
     const horaLocal = agora.toTimeString().split(' ')[0];
@@ -446,6 +449,22 @@ const carregarDados = async (silencioso = false) => {
       });
     }
 
+    if (!navigator.onLine) {
+      const novaFila = [...filaOffline, ...novasTransacoes];
+      setFilaOffline(novaFila);
+      await localforage.setItem('fila_acampamento', novaFila);
+      
+      toast.success('Pagamento em lote salvo na fila offline!');
+      setModalLoteAberto(false); 
+      setModoLote(false); 
+      setSelecionadosLote([]); 
+      setValorLote('');
+      return; 
+    }
+
+    setMensagemCarregando('A processar pagamento em lote...'); 
+    setCarregando(true);
+
     try {
       const { error } = await supabase.from('transacoes').insert(novasTransacoes);
       if (error) throw error;
@@ -464,27 +483,16 @@ const carregarDados = async (silencioso = false) => {
       setCarregando(false);
     }
   };
+
   const fazerUploadAnexo = async (arquivo) => {
     if (!arquivo) return null;
-    
-    // Pega a extensão (ex: .jpg, .png, .pdf)
     const extensao = arquivo.name.split('.').pop();
     const nomeUnico = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${extensao}`;
     
-    const { error } = await supabase.storage
-      .from('comprovantes')
-      .upload(nomeUnico, arquivo);
+    const { error } = await supabase.storage.from('comprovantes').upload(nomeUnico, arquivo);
+    if (error) throw new Error("Falha ao enviar arquivo pro bucket.");
 
-    if (error) {
-      console.error("Erro no Storage:", error);
-      throw new Error("Falha ao enviar arquivo pro bucket.");
-    }
-
-    // Pega a URL pública gerada
-    const { data } = supabase.storage
-      .from('comprovantes')
-      .getPublicUrl(nomeUnico);
-
+    const { data } = supabase.storage.from('comprovantes').getPublicUrl(nomeUnico);
     return data.publicUrl;
   };
 
@@ -501,7 +509,6 @@ const carregarDados = async (silencioso = false) => {
     const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
     const horaLocal = agora.toTimeString().split(' ')[0];
 
-    // Objeto formatado exatamente como a tabela do Supabase exige
     const payloadLancamento = {
       tipo: tipo,
       descricao: descricao,
@@ -516,20 +523,9 @@ const carregarDados = async (silencioso = false) => {
       edicao: edicaoAtiva
     };
 
-    // ====================================================
-    // DESVIO OFFLINE: Sem internet? Salva na memória local
-    // ====================================================
     if (!navigator.onLine) {
-      if (arquivoAnexo) {
-        toast.error("O modo offline não suporta envio de fotos.");
-        setCarregando(false);
-        return;
-      }
-      if (idEmEdicao) {
-        toast.error("Você precisa estar online para editar registros antigos.");
-        setCarregando(false);
-        return;
-      }
+      if (arquivoAnexo) { toast.error("O modo offline não suporta envio de fotos."); setCarregando(false); return; }
+      if (idEmEdicao) { toast.error("Você precisa estar online para editar registros antigos."); setCarregando(false); return; }
 
       const novaFila = [...filaOffline, payloadLancamento];
       setFilaOffline(novaFila);
@@ -542,9 +538,6 @@ const carregarDados = async (silencioso = false) => {
       return;
     }
 
-    // ====================================================
-    // FLUXO ONLINE NORMAL
-    // ====================================================
     try {
       let urlAnexoGerada = null;
       if (arquivoAnexo) {
@@ -553,24 +546,16 @@ const carregarDados = async (silencioso = false) => {
       }
 
       if (idEmEdicao) {
-        const payloadEdicao = {
-          ...payloadLancamento,
-          foi_editado: true,
-          updated_at: new Date().toISOString()
-        };
-        // Na edição, preservamos a data e hora originais em que o registro nasceu
+        const payloadEdicao = { ...payloadLancamento, foi_editado: true, updated_at: new Date().toISOString() };
         delete payloadEdicao.data_transacao;
         delete payloadEdicao.hora_transacao;
-
         if (urlAnexoGerada) payloadEdicao.anexo_url = urlAnexoGerada;
 
         const { error } = await supabase.from('transacoes').update(payloadEdicao).eq('id', idEmEdicao);
         if (error) throw error;
         toast.success("Registro atualizado com sucesso!");
-
       } else {
         if (urlAnexoGerada) payloadLancamento.anexo_url = urlAnexoGerada;
-
         const { error } = await supabase.from('transacoes').insert([payloadLancamento]);
         if (error) throw error;
         toast.success("Lançamento salvo com sucesso!");
@@ -588,50 +573,63 @@ const carregarDados = async (silencioso = false) => {
     }
   };
   
-
   const enviarNovoPagamento = async (e) => {
     e.preventDefault();
     if (!acampanteSelecionado || !novoPagamento) return;
 
-    setMensagemCarregando('Registrando pagamento...'); 
-    setCarregando(true);
-
     const valorNum = parseFloat(String(novoPagamento).replace(',', '.'));
     
-    // --- 1. FAZ O UPLOAD DO COMPROVANTE (SE HOUVER) ---
-    let urlAnexoGerada = null;
-    if (arquivoAnexoPagamento) {
-      setMensagemCarregando('Anexando comprovante...');
-      urlAnexoGerada = await fazerUploadAnexo(arquivoAnexoPagamento);
-    }
-
     const agora = new Date();
     const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
     const horaLocal = agora.toTimeString().split(' ')[0];
 
-    try {
-      const { error } = await supabase
-        .from('transacoes')
-        .insert([{
-          tipo: 'ENTRADA',
-          descricao: acampanteSelecionado.Descrição,
-          categoria: 'Pagamento Adicional',
-          valor_total: null,
-          valor_pago: valorNum,
-          forma_pagamento: formaPagamentoAdicional,
-          operador: operadorCaixa || 'Não identificado',
-          observacao: 'Quitação parcial/total de inscrição.',
-          data_transacao: dataLocal,
-          hora_transacao: horaLocal,
-          edicao: edicaoAtiva,
-          anexo_url: urlAnexoGerada // <-- LINK DA FOTO SALVO AQUI!
-        }]);
+    const payloadPagamento = {
+      tipo: 'ENTRADA',
+      descricao: acampanteSelecionado.Descrição,
+      categoria: 'Pagamento Adicional',
+      valor_total: null,
+      valor_pago: valorNum,
+      forma_pagamento: formaPagamentoAdicional,
+      operador: operadorCaixa || 'Não identificado',
+      observacao: 'Quitação parcial/total de inscrição.',
+      data_transacao: dataLocal,
+      hora_transacao: horaLocal,
+      edicao: edicaoAtiva
+    };
 
+    if (!navigator.onLine) {
+      if (arquivoAnexoPagamento) {
+        toast.error("O envio de comprovantes não é suportado no modo offline.");
+        return;
+      }
+      const novaFila = [...filaOffline, payloadPagamento];
+      setFilaOffline(novaFila);
+      await localforage.setItem('fila_acampamento', novaFila);
+      
+      toast.success('Pagamento rápido salvo na fila offline!');
+      setAcampanteSelecionado(null); 
+      setNovoPagamento(''); 
+      setArquivoAnexoPagamento(null);
+      return; 
+    }
+
+    setMensagemCarregando('Registrando pagamento...'); 
+    setCarregando(true);
+
+    try {
+      let urlAnexoGerada = null;
+      if (arquivoAnexoPagamento) {
+        setMensagemCarregando('Anexando comprovante...');
+        urlAnexoGerada = await fazerUploadAnexo(arquivoAnexoPagamento);
+        payloadPagamento.anexo_url = urlAnexoGerada;
+      }
+
+      const { error } = await supabase.from('transacoes').insert([payloadPagamento]);
       if (error) throw error;
 
       setAcampanteSelecionado(null); 
       setNovoPagamento(''); 
-      setArquivoAnexoPagamento(null); // <-- Zera o arquivo da memória
+      setArquivoAnexoPagamento(null); 
       carregarDados(); 
       toast.success('Pagamento recebido!');
 
@@ -642,15 +640,15 @@ const carregarDados = async (silencioso = false) => {
       setCarregando(false);
     }
   };
-  // ==========================================
-  // FUNÇÕES DE EXCLUSÃO (SUPABASE)
-  // ==========================================
 
-  // 1. Função gatilho: Verifica a rede e abre o modal vermelho
   const excluirRegistro = (id) => {
     if (!id) { 
       toast.error("Este registro não possui ID."); 
       return; 
+    }
+    if (String(id).startsWith('offline-')) {
+      toast.error("Sincronize os dados primeiro para poder excluir este registro.");
+      return;
     }
     if (!navigator.onLine) { 
       toast.error("Você precisa estar online para excluir."); 
@@ -659,7 +657,6 @@ const carregarDados = async (silencioso = false) => {
     setIdParaExcluir(id); 
   };
 
-  // 2. Função real: Vai no banco e apaga o registro definitivamente
   const confirmarExclusao = async () => {
     if (!idParaExcluir) return;
     
@@ -667,16 +664,12 @@ const carregarDados = async (silencioso = false) => {
     setCarregando(true);
     
     try {
-      const { error } = await supabase
-        .from('transacoes')
-        .delete()
-        .eq('id', idParaExcluir);
-
+      const { error } = await supabase.from('transacoes').delete().eq('id', idParaExcluir);
       if (error) throw error;
 
       toast.success("Registo excluído com sucesso!");
-      setIdParaExcluir(null); // Fecha o modal vermelho
-      carregarDados(); // Recarrega o histórico atualizado
+      setIdParaExcluir(null); 
+      carregarDados(); 
 
     } catch (error) {
       console.error("Erro ao excluir:", error);
@@ -689,7 +682,6 @@ const carregarDados = async (silencioso = false) => {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: darkMode ? '#0f172a' : '#f8fafc', transition: '0.3s' }}>
       
-      {/* O MOTOR MÁGICO DO MODO ESCURO */}
       <style>
         {`
           .container-aplicacao { transition: padding-left 0.3s ease; width: 100%; box-sizing: border-box; }
@@ -741,11 +733,8 @@ const carregarDados = async (silencioso = false) => {
             color: #2dd4bf !important;
           }
         `}
-        
-        
       </style>
 
-      {/* TELA DE CARREGAMENTO GLOBAL (Bloqueia apenas em ações críticas como Salvar/Excluir) */}
       {carregando && mensagemCarregando !== 'Atualizando dados...' && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex flex-col justify-center items-center">
           <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl flex flex-col items-center gap-4 shadow-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95 duration-200">
@@ -760,20 +749,37 @@ const carregarDados = async (silencioso = false) => {
       )}
 
       <div className="container-aplicacao" style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
-        <Toaster position="top-center" reverseOrder={false} />
+        <Toaster 
+          position="top-center" 
+          reverseOrder={false} 
+          toastOptions={{
+            style: {
+              background: darkMode ? '#1e293b' : '#ffffff',
+              color: darkMode ? '#f8fafc' : '#0f172a',
+              border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`,
+            },
+            success: { iconTheme: { primary: '#10b981', secondary: darkMode ? '#1e293b' : 'white' } },
+            error: { iconTheme: { primary: '#ef4444', secondary: darkMode ? '#1e293b' : 'white' } },
+          }} 
+        />
 
-        
-         
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', width: '100%', marginBottom: '40px' }}>
             
             {/* 1. CAIXA DO OPERADOR */}
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <div onClick={() => setDropdownOperadorAberto(!dropdownOperadorAberto)} style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: darkMode ? '#1e293b' : '#ffffff', padding: '10px 12px', borderRadius: '14px', cursor: 'pointer', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                <User size={16} color={operadorCaixa ? '#0d9488' : '#ef4444'} />
-                <span style={{ color: operadorCaixa ? (darkMode ? '#f8fafc' : '#0f172a') : '#ef4444', fontWeight: '700', fontSize: '13px', whiteSpace: 'nowrap' }}>
-                  {operadorCaixa ? operadorCaixa : 'Caixa Indefinido'}
-                </span>
-                <ChevronDown size={14} color="#94a3b8" style={{ transform: dropdownOperadorAberto ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.3s' }} />
+              
+              {/* Botão Principal com o texto discreto da Edição */}
+              <div onClick={() => setDropdownOperadorAberto(!dropdownOperadorAberto)} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: darkMode ? '#1e293b' : '#ffffff', padding: '6px 12px', borderRadius: '14px', cursor: 'pointer', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                <User size={18} color={operadorCaixa ? '#0d9488' : '#ef4444'} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <span style={{ color: operadorCaixa ? (darkMode ? '#f8fafc' : '#0f172a') : '#ef4444', fontWeight: '700', fontSize: '13px', whiteSpace: 'nowrap', lineHeight: '1.2' }}>
+                    {operadorCaixa ? operadorCaixa : 'Caixa Indefinido'}
+                  </span>
+                  <span style={{ fontSize: '10px', color: darkMode ? '#64748b' : '#94a3b8', fontWeight: '700', lineHeight: '1' }}>
+                    Edição {edicaoAtiva}
+                  </span>
+                </div>
+                <ChevronDown size={14} color="#94a3b8" style={{ transform: dropdownOperadorAberto ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.3s', marginLeft: '2px' }} />
               </div>
 
               {/* Dropdown do Operador */}
@@ -791,16 +797,53 @@ const carregarDados = async (silencioso = false) => {
                         {op}
                       </div>
                     ))}
-                    <div style={{ height: '1px', background: darkMode ? '#334155' : '#f1f5f9', margin: '4px 0' }}></div>
+                    
                     <div onClick={() => { setDropdownOperadorAberto(false); setModalOperadoresAberto(true); }} style={{ padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', color: darkMode ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Settings size={16} /> Gerenciar Equipe
                     </div>
+
+                    <div style={{ height: '1px', background: darkMode ? '#334155' : '#f1f5f9', margin: '4px 0' }}></div>
+                    
+                    {/* NOVO: SELETOR DE EDIÇÃO */}
+                    <div style={{ padding: '8px 8px 4px 8px' }}>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: darkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>
+                        Edição Ativa
+                      </label>
+                      <select 
+                        value={edicaoAtiva}
+                        onChange={(e) => {
+                          if (e.target.value === 'NOVA') {
+                            const nova = window.prompt('Qual o ano da nova edição? (ex: 2029)');
+                            if (nova && nova.trim() !== '') {
+                              const limpa = nova.trim();
+                              if (!listaEdicoes.includes(limpa)) {
+                                const atualizada = [...listaEdicoes, limpa].sort();
+                                setListaEdicoes(atualizada);
+                                localStorage.setItem('lista_edicoes', JSON.stringify(atualizada));
+                              }
+                              setEdicaoAtiva(limpa);
+                              localStorage.setItem('edicao_ativa', limpa);
+                            }
+                          } else {
+                            setEdicaoAtiva(e.target.value);
+                            localStorage.setItem('edicao_ativa', e.target.value);
+                          }
+                          setDropdownOperadorAberto(false);
+                        }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', backgroundColor: darkMode ? '#0f172a' : '#f8fafc', color: darkMode ? '#f8fafc' : '#0f172a', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, outline: 'none', cursor: 'pointer' }}
+                      >
+                        {listaEdicoes.map(ed => (
+                          <option key={ed} value={ed}>{ed}</option>
+                        ))}
+                        <option value="NOVA">+ Adicionar nova...</option>
+                      </select>
+                    </div>
+
                   </div>
                 </>
               )}
             </div>
 
-            {/* 2. BARRA DE FERRAMENTAS (Apenas ícones no celular) */}
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
               
               <button onClick={() => setDarkMode(!darkMode)} title="Alternar Tema" style={{ background: darkMode ? '#1e293b' : '#ffffff', border: '1px solid', borderColor: darkMode ? '#334155' : '#e2e8f0', borderRadius: '14px', padding: '10px', display: 'flex', alignItems: 'center', gap: '6px', color: darkMode ? '#cbd5e1' : '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: '13px', transition: '0.2s' }}>
@@ -921,10 +964,22 @@ const carregarDados = async (silencioso = false) => {
         )}
 
         {telaAtual === 'HISTORICO' && (
-          <HistoricoList termoBuscaHistorico={termoBuscaHistorico} setTermoBuscaHistorico={setTermoBuscaHistorico} filtroTipoHistorico={filtroTipoHistorico} setFiltroTipoHistorico={setFiltroTipoHistorico} filtroDataInicio={filtroDataInicio} setFiltroDataInicio={setFiltroDataInicio} filtroDataFim={filtroDataFim} setFiltroDataFim={setFiltroDataFim} historicoFiltrado={historicoFiltrado} prepararEdicao={prepararEdicao} excluirRegistro={excluirRegistro} />
+          <HistoricoList 
+            carregando={carregando && mensagemCarregando === 'Atualizando dados...'}
+            termoBuscaHistorico={termoBuscaHistorico} 
+            setTermoBuscaHistorico={setTermoBuscaHistorico} 
+            filtroTipoHistorico={filtroTipoHistorico} 
+            setFiltroTipoHistorico={setFiltroTipoHistorico} 
+            filtroDataInicio={filtroDataInicio} 
+            setFiltroDataInicio={setFiltroDataInicio} 
+            filtroDataFim={filtroDataFim} 
+            setFiltroDataFim={setFiltroDataFim} 
+            historicoFiltrado={historicoFiltrado} 
+            prepararEdicao={prepararEdicao} 
+            excluirRegistro={excluirRegistro} 
+          />
         )}
         
-
         {telaAtual === 'NOVO' && (
           <TransactionForm 
           setTelaAtual={setTelaAtual} 
@@ -943,15 +998,12 @@ const carregarDados = async (silencioso = false) => {
           carregando={carregando} 
           observacao={observacao} 
           setObservacao={setObservacao} 
-          
-          /* ... suas props antigas continuam aqui ... */
           arquivoAnexo={arquivoAnexo}
           setArquivoAnexo={setArquivoAnexo}
           />
-        
         )}
 
-        {/* NOVO MODAL DE EXCLUSÃO CUSTOMIZADO */}
+        {/* MODAL DE EXCLUSÃO CUSTOMIZADO */}
         {idParaExcluir && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
             <div className="bg-white" style={{ width: '90%', maxWidth: '350px', borderRadius: '24px', padding: '24px', animation: 'slideUp 0.2s ease-out', textAlign: 'center', backgroundColor: darkMode ? '#1e293b' : '#ffffff', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}` }}>

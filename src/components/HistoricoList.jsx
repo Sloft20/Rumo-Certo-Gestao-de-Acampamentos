@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Search, TrendingUp, TrendingDown, History, FileText, Edit2, Trash2, Clock, User, Calendar, MessageSquare, X, Paperclip } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, History, FileText, Edit2, Trash2, Clock, User, Calendar, MessageSquare, X, Paperclip, SearchX, RefreshCw } from 'lucide-react';
 import { obterColuna, formatarMoeda, formatarData } from '../utils/formatters';
 import { gerarRecibo } from '../utils/pdfGenerator';
 import toast from 'react-hot-toast';
-import CustomSelect from './CustomSelect';
 
 export default function HistoricoList({ 
+  carregando,
   termoBuscaHistorico, setTermoBuscaHistorico,
   filtroTipoHistorico, setFiltroTipoHistorico,
   filtroDataInicio, setFiltroDataInicio,
@@ -35,21 +35,16 @@ export default function HistoricoList({
     setFiltroDataFim('');
   };
 
-  const opcoesTipoTransacao = [
-    { value: 'TODOS', label: 'Todas as Transações' },
-    { value: 'ENTRADA', label: 'Apenas Entradas' },
-    { value: 'SAIDA', label: 'Apenas Saídas' }
-  ];
-
   return (
     <div className="pb-24 animate-in fade-in duration-300">
       
       {/* PAINEL DE FILTROS AVANÇADOS */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 mb-6 relative z-10 transition-colors">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
+        <div className="flex flex-col lg:flex-row gap-4 lg:items-end">
+          
           <div className="flex-1 w-full">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Buscar Registo</label>
-            <div className="flex items-center h-12 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/20 transition-all">
+            <div className="flex items-center h-[46px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/20 transition-all">
               <Search size={20} className="text-slate-400 shrink-0" />
               <input 
                 type="text" 
@@ -60,13 +55,29 @@ export default function HistoricoList({
               />
             </div>
           </div>
-          <div className="w-full md:w-64 z-50">
-            <CustomSelect 
-              label="Tipo de Transação"
-              value={filtroTipoHistorico}
-              onChange={(e) => setFiltroTipoHistorico(e.target.value)}
-              options={opcoesTipoTransacao}
-            />
+          
+          {/* NOVAS PÍLULAS DE FILTRO (CHIPS) */}
+          <div className="w-full lg:w-auto">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 lg:hidden">Tipo de Transação</label>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+              {['TODOS', 'ENTRADA', 'SAIDA'].map(tipo => {
+                const isActive = filtroTipoHistorico === tipo;
+                const labels = { TODOS: 'Todas', ENTRADA: 'Receitas', SAIDA: 'Despesas' };
+                return (
+                  <button 
+                    key={tipo}
+                    onClick={() => setFiltroTipoHistorico(tipo)}
+                    className={`px-4 py-2 rounded-xl whitespace-nowrap text-[13px] font-bold transition-all border ${
+                      isActive 
+                        ? 'bg-teal-500 border-teal-500 text-white shadow-md shadow-teal-500/20' 
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {labels[tipo]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -90,60 +101,90 @@ export default function HistoricoList({
         </div>
       </div>
 
-      {/* ESTADO VAZIO */}
-      {historicoFiltrado.length === 0 && (
-        <div className="text-center py-16 text-slate-500 dark:text-slate-400">
-          <div className="bg-slate-100 dark:bg-slate-800/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <History size={32} className="text-slate-400 dark:text-slate-500" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Nenhum Lançamento Encontrado</h3>
-          <p className="text-sm">Tente remover ou alterar os filtros aplicados acima.</p>
-        </div>
-      )}   
-
-      {/* LISTA DE RESULTADOS */}
       <div className="flex flex-col gap-3">
-        {historicoFiltrado.map((item, index) => {
-          const isEntrada = obterColuna(item, 'Tipo') === 'ENTRADA';
-          if (!obterColuna(item, 'Descrição')) return null;
+        {/* LÓGICA DE APRESENTAÇÃO: SKELETON -> EMPTY STATE -> LISTA */}
+        {carregando ? (
           
-          return (
-            <div 
-              key={index} 
-              onClick={() => setTransacaoSelecionada(item)}
-              className="flex items-center p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl cursor-pointer hover:shadow-md transition-all group"
-            >
-              <div className={`p-3 rounded-xl mr-4 shrink-0 transition-colors ${isEntrada ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400'}`}>
-                {isEntrada ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <h4 className="text-slate-900 dark:text-slate-100 text-[15px] font-bold truncate mb-0.5">
-                  {obterColuna(item, 'Descrição')}
-                </h4>
-                
-                {/* LINHA DE META-DADOS CORRIGIDA PARA MOBILE */}
-                <div className="flex items-center gap-1.5 text-[12px] sm:text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                  <span className="shrink-0">{formatarData(obterColuna(item, 'Data'))}</span>
-                  <span className="shrink-0 text-slate-300 dark:text-slate-600">•</span>
-                  <span className="truncate">{obterColuna(item, 'Categoria')}</span>
-                  
-                  {item.foi_editado && (
-                    <span className="bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider shrink-0">
-                      EDITADO
-                    </span>
-                  )}
+          /* SKELETONS A PISCAR */
+          [...Array(4)].map((_, i) => (
+            <div key={`skel-${i}`} className="animate-pulse bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 flex justify-between items-center h-[80px]">
+              <div className="flex items-center gap-4 w-2/3">
+                <div className="h-10 w-10 bg-slate-200 dark:bg-slate-800 rounded-xl shrink-0"></div>
+                <div className="flex flex-col gap-2 w-full">
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700/50 rounded w-full max-w-[200px]"></div>
+                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-1/2 max-w-[150px]"></div>
                 </div>
               </div>
-              
-              <div className="text-right ml-3 shrink-0">
-                <b className={`text-base ${isEntrada ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
-                  {isEntrada ? '+' : '-'}{formatarMoeda(obterColuna(item, 'Valor Pago'))}
-                </b>
-              </div>
+              <div className="w-16 h-5 bg-slate-100 dark:bg-slate-800 rounded-md shrink-0 ml-4"></div>
             </div>
-          );
-        })}
+          ))
+          
+        ) : historicoFiltrado.length === 0 ? (
+          
+          /* ESTADO VAZIO ILUSTRADO */
+          <div className="flex flex-col items-center justify-center py-12 px-4 text-center animate-in fade-in duration-300">
+            <div className="bg-slate-100 dark:bg-slate-800/50 p-6 rounded-full mb-4">
+              <SearchX size={40} className="text-slate-400 dark:text-slate-500" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Nenhum registo encontrado.</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-[280px]">
+              O histórico está vazio para os filtros selecionados.
+            </p>
+            {temFiltroAtivo && (
+              <button 
+                onClick={limparFiltros} 
+                className="bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-500/30 px-6 py-2.5 rounded-xl font-bold transition-all hover:bg-teal-100 dark:hover:bg-teal-500/20 flex items-center gap-2"
+              >
+                <RefreshCw size={18} /> Limpar Filtros
+              </button>
+            )}
+          </div>
+          
+        ) : (
+          
+          /* LISTA REAL COM DADOS */
+          historicoFiltrado.map((item, index) => {
+            const isEntrada = obterColuna(item, 'Tipo') === 'ENTRADA';
+            if (!obterColuna(item, 'Descrição')) return null;
+            
+            return (
+              <div 
+                key={index} 
+                onClick={() => setTransacaoSelecionada(item)}
+                className="flex items-center p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl cursor-pointer hover:shadow-md transition-all group animate-in fade-in slide-in-from-bottom-2"
+              >
+                <div className={`p-3 rounded-xl mr-4 shrink-0 transition-colors ${isEntrada ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400'}`}>
+                  {isEntrada ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-slate-900 dark:text-slate-100 text-[15px] font-bold truncate mb-0.5">
+                    {obterColuna(item, 'Descrição')}
+                  </h4>
+                  
+                  <div className="flex items-center gap-1.5 text-[12px] sm:text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                    <span className="shrink-0">{formatarData(obterColuna(item, 'Data'))}</span>
+                    <span className="shrink-0 text-slate-300 dark:text-slate-600">•</span>
+                    <span className="truncate">{obterColuna(item, 'Categoria')}</span>
+                    
+                    {item.foi_editado && (
+                      <span className="bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider shrink-0">
+                        EDITADO
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="text-right ml-3 shrink-0">
+                  <b className={`text-base ${isEntrada ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                    {isEntrada ? '+' : '-'}{formatarMoeda(obterColuna(item, 'Valor Pago'))}
+                  </b>
+                </div>
+              </div>
+            );
+          })
+          
+        )}
       </div>
 
       {/* MODAL DE DETALHES (TIPO BANCO) */}
@@ -155,7 +196,7 @@ export default function HistoricoList({
         const urlAnexoModal = ts['anexo_url'];
 
         return (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-end sm:items-center justify-center sm:p-4">
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-end sm:items-center justify-center sm:p-4 animate-in fade-in duration-200">
             
             <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300 shadow-2xl">
               
