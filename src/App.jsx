@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Wallet, RefreshCw, User, Users, Download, Eye, EyeOff, ShieldAlert, Settings, Plus, Trash2, X, ChevronDown, AlertCircle, Moon, Sun, Paperclip } from 'lucide-react';
+import { Wallet, RefreshCw, User, Users, Download, Eye, EyeOff, ShieldAlert, Settings, Plus, Trash2, X, ChevronDown, AlertCircle, Moon, Sun, Paperclip, TrendingUp, TrendingDown, Search, ArrowLeft } from 'lucide-react';
 import './App.css';
 import { supabase } from './supabaseClient';
 import { obterColuna, extrairNumero, formatarMoeda, formatarData } from './utils/formatters';
@@ -32,7 +32,16 @@ export default function App() {
   const [arquivoAnexo, setArquivoAnexo] = useState(null);
   const [idParaExcluir, setIdParaExcluir] = useState(null);
 
-  
+  // --- ESTADOS DO FAB E GAVETA (BOTTOM SHEET) ---
+  const [showFab, setShowFab] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
+  const [fabView, setFabView] = useState('MENU'); // MENU, BUSCA, PAGAR, FORM_ENTRADA, FORM_SAIDA
+  const [fabSearch, setFabSearch] = useState('');
+  const [fabDevedor, setFabDevedor] = useState(null);
+  const [fabValor, setFabValor] = useState('');
+  const [fabFormaPagamento, setFabFormaPagamento] = useState('PIX');
+  const [fabAnexo, setFabAnexo] = useState(null);
 
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('tema_rumo_certo') === 'escuro';
@@ -95,6 +104,21 @@ export default function App() {
       localStorage.setItem('tema_rumo_certo', 'claro');
     }
   }, [darkMode]);
+
+  // SCROLL INTELIGENTE DO FAB (ESCONDE-ESCONDE)
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > lastScrollY && currentScrollY > 50) {
+        setShowFab(false); 
+      } else {
+        setShowFab(true); 
+      }
+      setLastScrollY(currentScrollY);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
 
   useEffect(() => {
     const radarSupabase = supabase.channel('mudancas-banco')
@@ -290,6 +314,13 @@ export default function App() {
     return filtrados;
   }, [agrupamento, termoBusca, mostrarApenasDevedores, filtroCategoria]);
 
+  // LÓGICA DO CAIXA EXPRESSO (DEVEDORES NO FAB)
+  const devedoresFab = useMemo(() => {
+    return Object.values(agrupamento)
+      .map(a => ({ ...a, 'Saldo Devedor': a['Valor Total'] - a['Valor Pago'] }))
+      .filter(a => a['Saldo Devedor'] > 0 && a.Descrição.toLowerCase().includes(fabSearch.toLowerCase()));
+  }, [agrupamento, fabSearch]);
+
   const estatisticasPublico = useMemo(() => {
     const inscritosUnicos = Object.values(agrupamento);
     return {
@@ -358,9 +389,11 @@ export default function App() {
     });
   }, [dadosDaEdicao, termoBuscaHistorico, filtroTipoHistorico, filtroDataInicio, filtroDataFim]);
 
-  const abrirNovoRegistro = () => {
+  // --- NOVA LÓGICA DE ABRIR E PREPARAR EDIÇÃO NO FAB ---
+  const abrirNovoRegistro = (novoTipo) => {
     setIdEmEdicao(null); setDataEmEdicao(null); setDescricao(''); setValorTotal(''); setValorPago(''); setObservacao('');
-    setTelaAtual('NOVO');
+    setTipo(novoTipo);
+    setFabView(novoTipo === 'ENTRADA' ? 'FORM_ENTRADA' : 'FORM_SAIDA');
   };
 
   const prepararEdicao = (item) => {
@@ -370,15 +403,17 @@ export default function App() {
       dataCorrigida = `${dia}/${mes}/${ano}`;
     }
 
+    const tipoTransacao = obterColuna(item, 'Tipo');
+
     setIdEmEdicao(obterColuna(item, 'ID')); 
     setDataEmEdicao(dataCorrigida); 
-    setTipo(obterColuna(item, 'Tipo')); 
+    setTipo(tipoTransacao); 
     setDescricao(obterColuna(item, 'Descrição'));
     setCategoriaSelecionada(obterColuna(item, 'Categoria')); 
     setFormaPagamento(obterColuna(item, 'Forma de Pagamento') || 'PIX');
     setObservacao(obterColuna(item, 'Observação') || '');
     
-    const isEntrada = obterColuna(item, 'Tipo') === 'ENTRADA';
+    const isEntrada = tipoTransacao === 'ENTRADA';
     const cat = obterColuna(item, 'Categoria');
     
     if(isEntrada && (cat === 'Inscrição' || cat === 'Diária')) {
@@ -388,7 +423,10 @@ export default function App() {
     }
     
     setValorPago(obterColuna(item, 'Valor Pago') || '');
-    setTelaAtual('NOVO');
+    
+    // Abre a gaveta diretamente no form de edição
+    setIsFabMenuOpen(true);
+    setFabView(tipoTransacao === 'ENTRADA' ? 'FORM_ENTRADA' : 'FORM_SAIDA');
   };
   
   const sincronizarFila = async () => {
@@ -532,7 +570,7 @@ export default function App() {
       await localforage.setItem('fila_acampamento', novaFila);
 
       setDescricao(''); setValorTotal(''); setValorPago(''); setObservacao(''); setNovaCategoria('');
-      setTelaAtual('LISTA');
+      fecharFab();
       setCarregando(false);
       toast.success("Salvo offline! Clique em 'Sincronizar' quando a rede voltar.");
       return;
@@ -562,7 +600,7 @@ export default function App() {
       }
 
       setDescricao(''); setValorTotal(''); setValorPago(''); setObservacao(''); setNovaCategoria(''); setArquivoAnexo(null); setIdEmEdicao(null);
-      setTelaAtual('LISTA');
+      fecharFab();
       carregarDados();
 
     } catch (error) {
@@ -635,6 +673,83 @@ export default function App() {
 
     } catch (error) {
       console.error("Erro ao registrar pagamento:", error);
+      toast.error('Erro ao salvar no Supabase.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  // --- LÓGICA DO CAIXA EXPRESSO (GAVETA) ---
+  const fecharFab = () => {
+    setIsFabMenuOpen(false);
+    setTimeout(() => {
+      setFabView('MENU');
+      setFabSearch('');
+      setFabDevedor(null);
+      setFabValor('');
+      setFabFormaPagamento('PIX');
+      setFabAnexo(null); // Limpa o anexo ao fechar a gaveta
+    }, 200);
+  };
+
+ const enviarPagamentoFab = async (e) => {
+    e.preventDefault();
+    if (!fabDevedor || !fabValor) return;
+
+    const valorNum = parseFloat(String(fabValor).replace(',', '.'));
+    
+    const agora = new Date();
+    const dataLocal = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+    const horaLocal = agora.toTimeString().split(' ')[0];
+
+    const payloadPagamento = {
+      tipo: 'ENTRADA',
+      descricao: fabDevedor.Descrição,
+      categoria: 'Pagamento Adicional',
+      valor_total: null,
+      valor_pago: valorNum,
+      forma_pagamento: fabFormaPagamento,
+      operador: operadorCaixa || 'Não identificado',
+      observacao: 'Pagamento expresso via Caixa Expresso.',
+      data_transacao: dataLocal,
+      hora_transacao: horaLocal,
+      edicao: edicaoAtiva
+    };
+
+    if (!navigator.onLine) {
+      if (fabAnexo) {
+        toast.error("O envio de comprovantes não é suportado no modo offline.");
+        return;
+      }
+      const novaFila = [...filaOffline, payloadPagamento];
+      setFilaOffline(novaFila);
+      await localforage.setItem('fila_acampamento', novaFila);
+      
+      toast.success('Pagamento expresso salvo offline!');
+      fecharFab();
+      return; 
+    }
+
+    setMensagemCarregando('Processando...'); 
+    setCarregando(true);
+
+    try {
+      // Faz o upload do anexo, se existir
+      let urlAnexoGerada = null;
+      if (fabAnexo) {
+        setMensagemCarregando('Anexando comprovante...');
+        urlAnexoGerada = await fazerUploadAnexo(fabAnexo);
+        payloadPagamento.anexo_url = urlAnexoGerada;
+      }
+
+      const { error } = await supabase.from('transacoes').insert([payloadPagamento]);
+      if (error) throw error;
+
+      carregarDados(); 
+      toast.success('Pagamento expresso recebido!');
+      fecharFab();
+    } catch (error) {
+      console.error("Erro ao registrar no FAB:", error);
       toast.error('Erro ao salvar no Supabase.');
     } finally {
       setCarregando(false);
@@ -735,7 +850,7 @@ export default function App() {
         `}
       </style>
 
-      {carregando && mensagemCarregando !== 'Atualizando dados...' && (
+      {carregando && !isFabMenuOpen && mensagemCarregando !== 'Atualizando dados...' && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex flex-col justify-center items-center">
           <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl flex flex-col items-center gap-4 shadow-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95 duration-200">
             <RefreshCw size={36} className="text-teal-500 animate-spin" />
@@ -744,8 +859,9 @@ export default function App() {
         </div>
       )}
 
+      {/* Uso da nova BottomNav */}
       {!acampanteSelecionado && (
-        <BottomNav telaAtual={telaAtual} setTelaAtual={(tela) => tela === 'NOVO' ? abrirNovoRegistro() : setTelaAtual(tela)} />
+        <BottomNav telaAtual={telaAtual} setTelaAtual={setTelaAtual} />
       )}
 
       <div className="container-aplicacao" style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
@@ -765,10 +881,8 @@ export default function App() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', width: '100%', marginBottom: '40px' }}>
             
-            {/* 1. CAIXA DO OPERADOR */}
             <div style={{ position: 'relative', flexShrink: 0 }}>
               
-              {/* Botão Principal com o texto discreto da Edição */}
               <div onClick={() => setDropdownOperadorAberto(!dropdownOperadorAberto)} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: darkMode ? '#1e293b' : '#ffffff', padding: '6px 12px', borderRadius: '14px', cursor: 'pointer', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
                 <User size={18} color={operadorCaixa ? '#0d9488' : '#ef4444'} />
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
@@ -782,7 +896,6 @@ export default function App() {
                 <ChevronDown size={14} color="#94a3b8" style={{ transform: dropdownOperadorAberto ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.3s', marginLeft: '2px' }} />
               </div>
 
-              {/* Dropdown do Operador */}
               {dropdownOperadorAberto && (
                 <>
                   <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 40 }} onClick={() => setDropdownOperadorAberto(false)} />
@@ -804,7 +917,6 @@ export default function App() {
 
                     <div style={{ height: '1px', background: darkMode ? '#334155' : '#f1f5f9', margin: '4px 0' }}></div>
                     
-                    {/* NOVO: SELETOR DE EDIÇÃO */}
                     <div style={{ padding: '8px 8px 4px 8px' }}>
                       <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: darkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>
                         Edição Ativa
@@ -880,11 +992,11 @@ export default function App() {
         {telaAtual === 'LISTA' && (
           <div style={{ paddingBottom: '90px' }}>
             <DashboardOverview 
-              carregando={carregando && mensagemCarregando === 'Atualizando dados...'} 
+              carregando={carregando && !isFabMenuOpen && mensagemCarregando === 'Atualizando dados...'} 
               saldoCaixa={saldoCaixa} totalReceitas={totalReceitas} totalDespesas={totalDespesas} receitasPix={receitasPix} receitasDinheiro={receitasDinheiro} modoPrivacidade={modoPrivacidade} 
             />
             <AcampanteList 
-              carregando={carregando && mensagemCarregando === 'Atualizando dados...'} 
+              carregando={carregando && !isFabMenuOpen && mensagemCarregando === 'Atualizando dados...'} 
               termoBusca={termoBusca} setTermoBusca={setTermoBusca} acampantesFiltrados={acampantesFiltrados} setAcampanteSelecionado={setAcampanteSelecionado} mostrarApenasDevedores={mostrarApenasDevedores} setMostrarApenasDevedores={setMostrarApenasDevedores} modoLote={modoLote} setModoLote={setModoLote} selecionadosLote={selecionadosLote} setSelecionadosLote={setSelecionadosLote} setModalLoteAberto={setModalLoteAberto} filtroCategoria={filtroCategoria} setFiltroCategoria={setFiltroCategoria} 
             />
             <PaymentModal 
@@ -965,7 +1077,7 @@ export default function App() {
 
         {telaAtual === 'HISTORICO' && (
           <HistoricoList 
-            carregando={carregando && mensagemCarregando === 'Atualizando dados...'}
+            carregando={carregando && !isFabMenuOpen && mensagemCarregando === 'Atualizando dados...'}
             termoBuscaHistorico={termoBuscaHistorico} 
             setTermoBuscaHistorico={setTermoBuscaHistorico} 
             filtroTipoHistorico={filtroTipoHistorico} 
@@ -979,31 +1091,7 @@ export default function App() {
             excluirRegistro={excluirRegistro} 
           />
         )}
-        
-        {telaAtual === 'NOVO' && (
-          <TransactionForm 
-          setTelaAtual={setTelaAtual} 
-          guardarRegistro={guardarRegistro} 
-          tipo={tipo} setTipo={setTipo} 
-          categoriaSelecionada={categoriaSelecionada} 
-          setCategoriaSelecionada={setCategoriaSelecionada} 
-          listaCategoriasAtuais={listaCategoriasAtuais} 
-          novaCategoria={novaCategoria} 
-          setNovaCategoria={setNovaCategoria} 
-          descricao={descricao} setDescricao={setDescricao} 
-          isInscricao={isInscricao} valorTotal={valorTotal} 
-          setValorTotal={setValorTotal} valorPago={valorPago} 
-          setValorPago={setValorPago} saldoDevedor={saldoDevedor} 
-          formaPagamento={formaPagamento} setFormaPagamento={setFormaPagamento} 
-          carregando={carregando} 
-          observacao={observacao} 
-          setObservacao={setObservacao} 
-          arquivoAnexo={arquivoAnexo}
-          setArquivoAnexo={setArquivoAnexo}
-          />
-        )}
 
-        {/* MODAL DE EXCLUSÃO CUSTOMIZADO */}
         {idParaExcluir && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
             <div className="bg-white" style={{ width: '90%', maxWidth: '350px', borderRadius: '24px', padding: '24px', animation: 'slideUp 0.2s ease-out', textAlign: 'center', backgroundColor: darkMode ? '#1e293b' : '#ffffff', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}` }}>
@@ -1020,6 +1108,197 @@ export default function App() {
                 <button onClick={confirmarExclusao} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#ef4444', color: '#ffffff', fontWeight: '700', fontSize: '15px', cursor: 'pointer', transition: '0.2s', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}>
                   Sim, Excluir
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- O BOTÃO FLUTUANTE (FAB) --- */}
+        {!acampanteSelecionado && (
+          <button 
+            onClick={() => setIsFabMenuOpen(true)} 
+            className={`fixed right-6 md:right-10 z-40 bg-teal-500 hover:bg-teal-600 text-white p-4 rounded-2xl shadow-[0_8px_30px_rgb(20,184,166,0.4)] transition-all duration-500 flex items-center justify-center ${showFab ? 'bottom-32 md:bottom-12 scale-100' : '-bottom-32 scale-50 opacity-0'}`}
+          >
+            <Plus size={28} />
+          </button>
+        )}
+
+        {/* --- A SUPER GAVETA DE AÇÕES (BOTTOM SHEET) --- */}
+        {isFabMenuOpen && (
+          <div 
+            className="fixed inset-0 z-[10000] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" 
+            onClick={fecharFab}
+          >
+            {/* O modal agora usa max-h-[90vh] e flex-col para o scroll acontecer apenas dentro dele */}
+            <div 
+              className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-full duration-300 transition-all flex flex-col max-h-[92vh]" 
+              onClick={e => e.stopPropagation()} 
+            >
+              {/* O "Puxador" visual e Cabeçalho Fixos */}
+              <div className="shrink-0 mb-4">
+                <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-6"></div>
+                
+                <div className="flex justify-between items-center px-2">
+                  <div className="flex items-center gap-3">
+                    {fabView !== 'MENU' && (
+                      <button onClick={() => setFabView(fabView === 'PAGAR' ? 'BUSCA' : 'MENU')} className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 rounded-full p-1.5 transition-colors">
+                        <ArrowLeft size={20} />
+                      </button>
+                    )}
+                    <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">
+                      {fabView === 'MENU' ? 'O que deseja fazer?' : 
+                       fabView === 'BUSCA' ? 'Selecione o Devedor' : 
+                       fabView === 'PAGAR' ? 'Caixa Expresso' : 
+                       fabView === 'FORM_ENTRADA' ? (idEmEdicao ? 'Editar Entrada' : 'Nova Entrada') : 
+                       (idEmEdicao ? 'Editar Saída' : 'Nova Saída')}
+                    </h3>
+                  </div>
+                  <button onClick={fecharFab} className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 rounded-full p-2 transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Conteúdo com Scroll interno */}
+              <div className="overflow-y-auto scrollbar-hide flex-1 pb-4 px-1">
+                
+                {/* VIEW 1: MENU PRINCIPAL */}
+                {fabView === 'MENU' && (
+                  <div className="flex flex-col gap-3 animate-in slide-in-from-left-4 fade-in duration-300 pt-2">
+                    <button 
+                      onClick={() => abrirNovoRegistro('ENTRADA')} 
+                      className="flex items-center gap-4 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 p-4 rounded-2xl transition-colors text-left group"
+                    >
+                      <div className="bg-emerald-500 group-hover:scale-110 transition-transform text-white p-3 rounded-xl shadow-sm"><TrendingUp size={24} /></div>
+                      <div>
+                        <h4 className="font-bold text-emerald-700 dark:text-emerald-400 text-[17px]">Nova Entrada</h4>
+                        <p className="text-sm text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">Formulário completo de inscrições/doações</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => abrirNovoRegistro('SAIDA')} 
+                      className="flex items-center gap-4 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 p-4 rounded-2xl transition-colors text-left group"
+                    >
+                      <div className="bg-rose-500 group-hover:scale-110 transition-transform text-white p-3 rounded-xl shadow-sm"><TrendingDown size={24} /></div>
+                      <div>
+                        <h4 className="font-bold text-rose-700 dark:text-rose-400 text-[17px]">Nova Saída</h4>
+                        <p className="text-sm text-rose-600/80 dark:text-rose-400/80 mt-0.5">Registrar pagamentos e despesas gerais</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => setFabView('BUSCA')} 
+                      className="flex items-center gap-4 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 p-4 rounded-2xl transition-colors text-left group"
+                    >
+                      <div className="bg-blue-500 group-hover:scale-110 transition-transform text-white p-3 rounded-xl shadow-sm"><Search size={24} /></div>
+                      <div>
+                        <h4 className="font-bold text-blue-700 dark:text-blue-400 text-[17px]">Caixa Expresso</h4>
+                        <p className="text-sm text-blue-600/80 dark:text-blue-400/80 mt-0.5">Abater dívida rapidamente por aqui</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+
+                {/* VIEW 2: BUSCA DE DEVEDOR */}
+                {fabView === 'BUSCA' && (
+                  <div className="animate-in slide-in-from-right-4 fade-in duration-300 pt-2">
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 mb-4 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                      <Search size={20} className="text-slate-400 shrink-0" />
+                      <input autoFocus type="text" placeholder="Digite o nome..." value={fabSearch} onChange={e => setFabSearch(e.target.value)} className="bg-transparent border-none outline-none w-full text-base text-slate-700 dark:text-slate-200" />
+                    </div>
+                    <div className="max-h-[35vh] flex flex-col gap-2">
+                      {devedoresFab.length === 0 ? (
+                        <p className="text-center text-sm text-slate-500 dark:text-slate-400 py-6">Nenhuma dívida pendente encontrada.</p>
+                      ) : (
+                        devedoresFab.map(d => (
+                          <div key={d.Descrição} onClick={() => { setFabDevedor(d); setFabView('PAGAR'); }} className="flex justify-between items-center p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl cursor-pointer hover:border-blue-300 dark:hover:border-blue-500/50 transition-colors shrink-0">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-base">{d.Descrição}</span>
+                            <span className="text-amber-500 dark:text-amber-400 font-bold text-sm bg-amber-50 dark:bg-amber-500/10 px-3 py-1 rounded-lg">{formatarMoeda(d['Saldo Devedor'])}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* VIEW 3: PAGAR (MINI FORMULÁRIO) */}
+                {fabView === 'PAGAR' && fabDevedor && (
+                  <form onSubmit={enviarPagamentoFab} className="animate-in slide-in-from-right-4 fade-in duration-300 flex flex-col gap-4 pt-2">
+                    <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-4 rounded-xl flex justify-between items-center mb-2">
+                      <div>
+                        <p className="text-xs text-amber-700 dark:text-amber-500 font-semibold uppercase tracking-wider mb-0.5">Receber de</p>
+                        <p className="font-bold text-amber-900 dark:text-amber-300 text-base">{fabDevedor.Descrição}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-amber-700 dark:text-amber-500 font-semibold uppercase tracking-wider mb-0.5">Dívida</p>
+                        <p className="font-bold text-amber-900 dark:text-amber-300 text-base">{formatarMoeda(fabDevedor['Saldo Devedor'])}</p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Valor a Receber (R$)</label>
+                      <input autoFocus type="number" step="0.01" value={fabValor} onChange={e => setFabValor(e.target.value)} required placeholder="0.00" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-xl font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all" />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Forma de Pagamento</label>
+                      <select value={fabFormaPagamento} onChange={e => setFabFormaPagamento(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-base font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer">
+                        <option value="PIX">PIX</option>
+                        <option value="DINHEIRO">Dinheiro Físico</option>
+                        <option value="CARTÃO">Cartão</option>
+                      </select>
+                    </div>
+
+                    {/* NOVO: CAMPO DE ANEXO */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Comprovante (Opcional)</label>
+                      {!fabAnexo ? (
+                        <label className="flex flex-col items-center justify-center gap-2 px-4 py-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer bg-slate-50/50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-500 dark:text-slate-400 transition-colors">
+                          <Paperclip size={20} className="text-slate-400" />
+                          <span className="text-sm font-medium">Anexar foto ou PDF</span>
+                          <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => { if (e.target.files && e.target.files[0]) { setFabAnexo(e.target.files[0]); } }} />
+                        </label>
+                      ) : (
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2 rounded-lg"><Paperclip size={16} /></div>
+                            <span className="text-sm font-medium truncate max-w-[200px]">{fabAnexo.name}</span>
+                          </div>
+                          <button type="button" onClick={() => setFabAnexo(null)} className="p-2 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 rounded-lg transition-colors"><X size={16} /></button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <button disabled={carregando} type="submit" className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded-xl shadow-[0_4px_14px_0_rgb(37,99,235,0.39)] transition-all flex justify-center items-center gap-2 ${carregando ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                      {carregando ? <RefreshCw className="animate-spin" size={20} /> : 'Confirmar Pagamento Rápido'}
+                    </button>
+                  </form>
+                )}
+
+                {/* VIEW 4: O FORMULÁRIO COMPLETO EMBUTIDO */}
+                {(fabView === 'FORM_ENTRADA' || fabView === 'FORM_SAIDA') && (
+                  <TransactionForm 
+                    guardarRegistro={guardarRegistro} 
+                    tipo={tipo} setTipo={setTipo} 
+                    categoriaSelecionada={categoriaSelecionada} 
+                    setCategoriaSelecionada={setCategoriaSelecionada} 
+                    listaCategoriasAtuais={listaCategoriasAtuais} 
+                    novaCategoria={novaCategoria} 
+                    setNovaCategoria={setNovaCategoria} 
+                    descricao={descricao} setDescricao={setDescricao} 
+                    isInscricao={isInscricao} valorTotal={valorTotal} 
+                    setValorTotal={setValorTotal} valorPago={valorPago} 
+                    setValorPago={setValorPago} saldoDevedor={saldoDevedor} 
+                    formaPagamento={formaPagamento} setFormaPagamento={setFormaPagamento} 
+                    carregando={carregando} 
+                    observacao={observacao} 
+                    setObservacao={setObservacao} 
+                    arquivoAnexo={arquivoAnexo}
+                    setArquivoAnexo={setArquivoAnexo}
+                  />
+                )}
+
               </div>
             </div>
           </div>

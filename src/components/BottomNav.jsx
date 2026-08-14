@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { PlusCircle, ScrollText, PieChart, Menu, ChevronLeft } from 'lucide-react';
+import { ScrollText, PieChart, Menu, ChevronLeft } from 'lucide-react';
 import IconeTenda from './IconeTenda';
 
 export default function BottomNav({ telaAtual, setTelaAtual }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // O botão de "Lançar" foi removido. Centralizamos o Painel, Metas e Histórico.
   const navItems = [
-    { id: 'LISTA', label: 'Início', icon: IconeTenda },
-    { id: 'NOVO', label: 'Lançar', icon: PlusCircle },
-    { id: 'HISTORICO', label: 'Histórico', icon: ScrollText },
-    { id: 'RESUMO', label: 'Resumo', icon: PieChart }
+    { id: 'LISTA', label: 'Painel', icon: IconeTenda },
+    { id: 'RESUMO', label: 'Metas', icon: PieChart },
+    { id: 'HISTORICO', label: 'Histórico', icon: ScrollText }
   ];
 
   return (
@@ -34,7 +34,7 @@ export default function BottomNav({ telaAtual, setTelaAtual }) {
         bg-white/90 dark:bg-slate-900/90
         border-t border-slate-200 dark:border-slate-800
         rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.4)]
-        pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 px-2
+        pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 px-6
         
         /* === DESKTOP === */
         md:top-0 md:bottom-auto md:h-screen md:flex-col md:justify-center
@@ -58,7 +58,7 @@ export default function BottomNav({ telaAtual, setTelaAtual }) {
         </button>
 
         {/* ITENS DE NAVEGAÇÃO */}
-        <div className="flex w-full md:flex-col justify-around md:justify-center gap-1 md:gap-4">
+        <div className="flex w-full md:flex-col justify-between md:justify-center max-w-sm mx-auto md:max-w-none md:mx-0 gap-2 md:gap-4">
           {navItems.map((item) => {
             const isActive = telaAtual === item.id;
             const Icon = item.icon;
@@ -70,7 +70,7 @@ export default function BottomNav({ telaAtual, setTelaAtual }) {
                 className={`
                   group flex flex-col md:flex-row items-center
                   ${isExpanded ? 'md:justify-start' : 'md:justify-center'}
-                  gap-1 md:gap-4 md:w-full md:p-3 rounded-2xl
+                  gap-1.5 md:gap-4 md:w-full md:p-3 rounded-2xl
                   transition-all duration-300 ease-out outline-none
                   ${isActive 
                     ? 'text-teal-600 dark:text-teal-400' 
@@ -88,7 +88,7 @@ export default function BottomNav({ telaAtual, setTelaAtual }) {
                   <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="transition-all duration-300" />
                 </div>
                 
-                {/* TEXTO DO BOTÃO (Correção aplicada aqui) */}
+                {/* TEXTO DO BOTÃO */}
                 <span className={`
                   text-[10px] md:text-[15px] whitespace-nowrap transition-all duration-300
                   ${isActive ? 'font-extrabold opacity-100 -translate-y-0.5 md:translate-y-0' : 'font-semibold opacity-70'}
