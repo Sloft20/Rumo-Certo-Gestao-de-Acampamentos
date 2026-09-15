@@ -525,10 +525,28 @@ export default function App() {
 
   const fazerUploadAnexo = async (arquivo) => {
     if (!arquivo) return null;
-    const extensao = arquivo.name.split('.').pop();
+    
+    let arquivoParaEnviar = arquivo;
+
+    // A inteligência: Se for imagem, comprime. Se for PDF, passa direto.
+    if (arquivo.type.startsWith('image/')) {
+      const opcoesDeCompressao = {
+        maxSizeMB: 0.2, // Força a imagem a ter no máximo ~200 KB
+        maxWidthOrHeight: 1200, // Mantém a resolução legível para recibos
+        useWebWorker: true,
+      };
+      
+      try {
+        arquivoParaEnviar = await imageCompression(arquivo, opcoesDeCompressao);
+      } catch (error) {
+        console.warn("Erro ao comprimir, enviando original", error);
+      }
+    }
+
+    const extensao = arquivoParaEnviar.name.split('.').pop();
     const nomeUnico = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${extensao}`;
     
-    const { error } = await supabase.storage.from('comprovantes').upload(nomeUnico, arquivo);
+    const { error } = await supabase.storage.from('comprovantes').upload(nomeUnico, arquivoParaEnviar);
     if (error) throw new Error("Falha ao enviar arquivo pro bucket.");
 
     const { data } = supabase.storage.from('comprovantes').getPublicUrl(nomeUnico);
@@ -951,6 +969,11 @@ export default function App() {
                         <option value="NOVA">+ Adicionar nova...</option>
                       </select>
                     </div>
+                    {/* --- ADICIONE ESTE BLOCO AQUI --- */}
+                    <div style={{ height: '1px', background: darkMode ? '#334155' : '#f1f5f9', margin: '4px 0' }}></div>
+                    <div style={{ padding: '4px 8px 8px 8px' }}>
+                      <BotaoAuditoria darkMode={darkMode} />
+                    </div>
 
                   </div>
                 </>
@@ -978,7 +1001,7 @@ export default function App() {
                 <RefreshCw size={18} /> 
                 <span className="hidden sm:inline">Atualizar</span>
               </button>
-              <BotaoAuditoria />
+              
 
             </div>
           </div>
