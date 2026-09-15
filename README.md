@@ -1,5 +1,4 @@
 # Rumo Certo 🏕️
-# Rumo Certo 🏕️
 
 ![AI Assisted](https://img.shields.io/badge/AI_Assisted-Development-0d9488?style=for-the-badge&logo=google-gemini&logoColor=white)
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
