@@ -13,6 +13,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import BottomNav from './components/BottomNav';
 import { gerarBalancetePDF } from './utils/pdfGenerator';
 import PainelMetas from './components/PainelMetas';
+import { BotaoAuditoria } from './components/BotaoAuditoria';
 
 export default function App() {
   const [telaAtual, setTelaAtual] = useState('LISTA'); 
@@ -977,6 +978,7 @@ export default function App() {
                 <RefreshCw size={18} /> 
                 <span className="hidden sm:inline">Atualizar</span>
               </button>
+              <BotaoAuditoria />
 
             </div>
           </div>
